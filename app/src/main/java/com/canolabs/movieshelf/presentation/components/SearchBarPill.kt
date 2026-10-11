@@ -1,5 +1,6 @@
 package com.canolabs.movieshelf.presentation.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +24,13 @@ import androidx.compose.ui.unit.dp
 val SearchBarHeight = 56.dp
 
 /**
+ * Thin outline that separates the search bar from light backgrounds (e.g. the Home gradient). Shared
+ * by the bar and the full-screen search field, so the shared-bounds morph keeps the same edge.
+ */
+@Composable
+fun searchBarBorder(): BorderStroke = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+
+/**
  * Collapsed, tappable search bar. It shares its bounds with the full-screen search field, so tapping
  * it morphs the bar into the Search Entry destination.
  */
@@ -33,12 +41,15 @@ fun SearchBarPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     clickLabel: String? = null,
+    /** Optional action at the end of the bar (e.g. settings); it keeps its own click and semantics. */
+    trailing: (@Composable () -> Unit)? = null,
     leading: @Composable () -> Unit,
 ) {
     Surface(
         onClick = onClick,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = searchBarBorder(),
         modifier = modifier
             .sharedSearchBar()
             .fillMaxWidth()
@@ -48,7 +59,10 @@ fun SearchBarPill(
                 if (clickLabel != null) contentDescription = clickLabel
             },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, end = 20.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 4.dp, end = if (trailing != null) 4.dp else 20.dp),
+        ) {
             leading()
             Spacer(Modifier.width(4.dp))
             Text(
@@ -61,7 +75,9 @@ fun SearchBarPill(
                 },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            trailing?.invoke()
         }
     }
 }

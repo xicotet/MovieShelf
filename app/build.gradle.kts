@@ -97,6 +97,7 @@ dependencies {
     implementation(libs.koin.androidx.compose)
 
     implementation(libs.coil.compose)
+    implementation(libs.lottie.compose)
     implementation(libs.coil.network.ktor3)
 
     testImplementation(libs.junit)

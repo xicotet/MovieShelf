@@ -14,16 +14,16 @@ class ShowResultsTest {
 
     @Test
     fun `submitting from search replaces the entry with results`() {
-        val backStack = mutableListOf<NavKey>(SearchDestination, SearchEntryDestination())
+        val backStack = mutableListOf<NavKey>(HomeDestination, SearchEntryDestination())
 
         backStack.showResults(query("alien"), ids)
 
-        assertEquals(listOf(SearchDestination, ResultsDestination("alien", "submission-1")), backStack)
+        assertEquals(listOf(HomeDestination, ResultsDestination("alien", "submission-1")), backStack)
     }
 
     @Test
     fun `resubmitting the same query creates a distinct entry that replaces the previous one`() {
-        val backStack = mutableListOf<NavKey>(SearchDestination, SearchEntryDestination())
+        val backStack = mutableListOf<NavKey>(HomeDestination, SearchEntryDestination())
         backStack.showResults(query("alien"), ids)
         val first = backStack.last()
 
@@ -32,7 +32,7 @@ class ShowResultsTest {
         backStack.showResults(query("alien"), ids)
         val second = backStack.last()
 
-        assertEquals(listOf(SearchDestination, second), backStack)
+        assertEquals(listOf(HomeDestination, second), backStack)
         assertNotEquals(first, second)
         // Navigation 3's default content key (and so the ViewModel scope) is key.toString().
         assertNotEquals(first.toString(), second.toString())
@@ -40,7 +40,7 @@ class ShowResultsTest {
 
     @Test
     fun `default ids are unique per submission`() {
-        val backStack = mutableListOf<NavKey>(SearchDestination)
+        val backStack = mutableListOf<NavKey>(HomeDestination)
 
         backStack.showResults(query("alien"))
         val first = backStack.last() as ResultsDestination
@@ -52,11 +52,11 @@ class ShowResultsTest {
 
     @Test
     fun `discover opens results without a query`() {
-        val backStack = mutableListOf<NavKey>(SearchDestination)
+        val backStack = mutableListOf<NavKey>(HomeDestination)
 
         backStack.showDiscover(ids)
 
-        assertEquals(listOf(SearchDestination, ResultsDestination(query = null, submissionId = "submission-1")), backStack)
+        assertEquals(listOf(HomeDestination, ResultsDestination(query = null, submissionId = "submission-1")), backStack)
     }
 
     @Test

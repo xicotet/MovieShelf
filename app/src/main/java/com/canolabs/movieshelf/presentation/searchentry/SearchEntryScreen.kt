@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.canolabs.movieshelf.R
 import com.canolabs.movieshelf.domain.model.RecentSearch
 import com.canolabs.movieshelf.domain.model.SearchQuery
+import com.canolabs.movieshelf.presentation.components.searchBarBorder
 import com.canolabs.movieshelf.presentation.components.sharedSearchBar
 import com.canolabs.movieshelf.ui.theme.AppTheme
 
@@ -203,6 +204,7 @@ private fun SearchField(
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = searchBarBorder(),
         modifier = modifier
             .sharedSearchBar()
             .fillMaxWidth(),

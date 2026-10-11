@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 
 /** Back-stack keys. They are serializable so the back stack survives process recreation. */
 @Serializable
-data object SearchDestination : NavKey
+data object HomeDestination : NavKey
 
 @Serializable
 data class SearchEntryDestination(val initialQuery: String = "") : NavKey

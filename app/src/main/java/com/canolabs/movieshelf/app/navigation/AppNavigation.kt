@@ -22,15 +22,15 @@ import com.canolabs.movieshelf.domain.model.ResultsRequest
 import com.canolabs.movieshelf.domain.model.SearchQuery
 import com.canolabs.movieshelf.presentation.components.LocalSharedTransitionScope
 import com.canolabs.movieshelf.presentation.detail.MovieDetailRoute
+import com.canolabs.movieshelf.presentation.home.HomeRoute
 import com.canolabs.movieshelf.presentation.results.ResultsRoute
-import com.canolabs.movieshelf.presentation.search.SearchRoute
 import com.canolabs.movieshelf.presentation.searchentry.SearchEntryRoute
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.util.UUID
 
 /**
- * Search -> Search Entry -> Results -> Movie Detail, on a Navigation 3 back stack.
+ * Home -> Search Entry -> Results -> Movie Detail, on a Navigation 3 back stack.
  *
  * Every destination is wrapped in one [SharedTransitionLayout] whose scope is handed to [NavDisplay],
  * so the search bar can morph into the full-screen entry field and posters can travel from Results to
@@ -38,7 +38,7 @@ import java.util.UUID
  */
 @Composable
 fun AppNavigation(modifier: Modifier = Modifier) {
-    val backStack = rememberNavBackStack(SearchDestination)
+    val backStack = rememberNavBackStack(HomeDestination)
 
     SharedTransitionLayout(modifier = modifier) {
         CompositionLocalProvider(LocalSharedTransitionScope provides this) {
@@ -54,8 +54,8 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 popTransitionSpec = { fadeThrough() },
                 predictivePopTransitionSpec = { fadeThrough() },
                 entryProvider = entryProvider {
-                    entry<SearchDestination> {
-                        SearchRoute(
+                    entry<HomeDestination> {
+                        HomeRoute(
                             settingsViewModel = koinViewModel(),
                             onSearchClick = { backStack.add(SearchEntryDestination()) },
                             onDiscoverClick = { backStack.showDiscover() },
@@ -92,7 +92,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
 
 /**
  * Replaces the search entry (and the results it was opened from, if any) with the results for
- * [query], so Back from Results always returns to Search rather than to an older query. Every call
+ * [query], so Back from Results always returns to Home rather than to an older query. Every call
  * creates a new submission identity, including for identical query text.
  */
 internal fun MutableList<NavKey>.showResults(
@@ -104,7 +104,7 @@ internal fun MutableList<NavKey>.showResults(
     add(ResultsDestination(query.text, newSubmissionId()))
 }
 
-/** Opens Discover as a new Results submission on top of Search. */
+/** Opens Discover as a new Results submission on top of Home. */
 internal fun MutableList<NavKey>.showDiscover(
     newSubmissionId: () -> String = { UUID.randomUUID().toString() },
 ) {

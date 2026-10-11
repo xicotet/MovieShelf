@@ -3,9 +3,8 @@
 
     <!-- Search -->
     <string name="search_placeholder">Search movies</string>
-    <string name="search_headline">Find your next film</string>
-    <string name="search_supporting">Search millions of titles from The Movie Database. Results are saved on your device, so you can come back to them offline.</string>
-    <string name="search_tmdb_attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
+    <string name="home_headline">Find your next film</string>
+    <string name="home_supporting">Search millions of titles from The Movie Database. Results are saved on your device, so you can come back to them offline.</string>
 
     <!-- Search entry -->
     <string name="search_entry_recent">Recent searches</string>
@@ -91,7 +90,7 @@
     <string name="settings_text_default">Default</string>
     <string name="settings_text_large">Large</string>
     <string name="settings_about">About</string>
-    <string name="settings_about_text">MovieShelf is an educational, offline-first project created by Pablo Cano. It uses the TMDB API but is not endorsed by, certified by or affiliated with TMDB.</string>
+    <string name="settings_about_text">MovieShelf is an educational, offline-first project created by Pablo Cano. It is not affiliated with TMDB.</string>
 
     <!-- Recent searches -->
     <string name="recent_remove_action">Remove from recent searches</string>
