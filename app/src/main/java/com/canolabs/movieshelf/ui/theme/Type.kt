@@ -10,7 +10,7 @@ import com.canolabs.movieshelf.R
 val provider: GoogleFont.Provider = GoogleFont.Provider(
     providerAuthority = "com.google.android.gms.fonts",
     providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs
+    certificates = R.array.google_fonts_certs
 )
 
 // Downloadable fonts are resolved at runtime through Google Play services. Each weight used by the

@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 /**
@@ -240,7 +241,7 @@ class ResultsViewModel(
                     // The page is persisted; keep the footer loading until Room exposes it, so the
                     // button never reappears for a frame next to the old list. Bounded, because the
                     // repository succeeds without changes when the page was discarded as stale.
-                    withTimeoutOrNull(PAGE_SYNC_TIMEOUT_MS) {
+                    withTimeoutOrNull(PAGE_SYNC_TIMEOUT) {
                         observeSearchResults(request).first { it.loadedPages != pagesBefore }
                     }
                 }
@@ -267,6 +268,6 @@ class ResultsViewModel(
     companion object {
         private const val TAG = "ResultsViewModel"
         private const val KEY_SUBMITTED = "results_submitted"
-        private const val PAGE_SYNC_TIMEOUT_MS = 2_000L
+        private val PAGE_SYNC_TIMEOUT = 2.seconds
     }
 }

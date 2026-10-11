@@ -26,6 +26,7 @@ import com.canolabs.movieshelf.testing.query
 import com.canolabs.movieshelf.testing.search
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -38,7 +39,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlin.time.Duration.Companion.milliseconds
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ResultsViewModelTest {
 
     @get:Rule
@@ -99,7 +102,7 @@ class ResultsViewModelTest {
         // The screen stops observing (e.g. Detail on top) long enough for WhileSubscribed to stop the
         // upstream; observing again restarts it — and its onStart — but must not reload.
         first.cancel()
-        advanceTimeBy(5_001)
+        advanceTimeBy(5_001.milliseconds)
         subscribe(viewModel)
 
         assertEquals(1, repository.refreshCalls.size)
@@ -806,7 +809,7 @@ class ResultsViewModelTest {
         viewModel.onIntent(UiIntent.LoadMore)
         assertEquals(NextPage.Loading, viewModel.uiState.value.nextPage)
 
-        advanceTimeBy(2_001)
+        advanceTimeBy(2_001.milliseconds)
         assertEquals(NextPage.Available, viewModel.uiState.value.nextPage)
     }
 

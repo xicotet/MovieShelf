@@ -9,6 +9,7 @@ import com.canolabs.movieshelf.domain.usecase.ObserveMovieDetailsUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.RefreshMovieDetailsUseCaseImpl
 import com.canolabs.movieshelf.testing.MainDispatcherRule
 import com.canolabs.movieshelf.testing.movie
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -24,6 +25,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MovieDetailViewModelTest {
 
     @get:Rule

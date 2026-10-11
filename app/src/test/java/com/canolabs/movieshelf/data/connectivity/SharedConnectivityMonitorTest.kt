@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SharedConnectivityMonitorTest {
@@ -102,7 +103,7 @@ class SharedConnectivityMonitorTest {
         runCurrent()
 
         collector.cancel()
-        advanceTimeBy(5_001)
+        advanceTimeBy(5_001.milliseconds)
         runCurrent()
         assertEquals(1, source.unregistrations)
 

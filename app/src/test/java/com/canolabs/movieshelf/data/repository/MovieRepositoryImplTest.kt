@@ -9,7 +9,6 @@ import com.canolabs.movieshelf.domain.model.RefreshResult
 import com.canolabs.movieshelf.testing.FakeMovieLocalDataSource
 import com.canolabs.movieshelf.testing.FakeMovieRemoteDataSource
 import com.canolabs.movieshelf.testing.movieDto
-import com.canolabs.movieshelf.testing.query
 import com.canolabs.movieshelf.testing.search
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest

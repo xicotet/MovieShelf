@@ -6,6 +6,7 @@ import com.canolabs.movieshelf.domain.usecase.RemoveRecentSearchUseCaseImpl
 import com.canolabs.movieshelf.testing.FakeSearchRepository
 import com.canolabs.movieshelf.testing.MainDispatcherRule
 import com.canolabs.movieshelf.testing.query
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -16,6 +17,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SearchEntryViewModelTest {
 
     @get:Rule

@@ -8,6 +8,7 @@ import com.canolabs.movieshelf.domain.usecase.ObserveSettingsUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.SetTextSizeUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.SetThemeModeUseCaseImpl
 import com.canolabs.movieshelf.testing.MainDispatcherRule
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -18,6 +19,7 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
 
     @get:Rule

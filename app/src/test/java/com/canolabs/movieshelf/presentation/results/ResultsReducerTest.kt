@@ -7,7 +7,6 @@ import com.canolabs.movieshelf.domain.model.Movie
 import com.canolabs.movieshelf.presentation.results.ResultsContract.Content
 import com.canolabs.movieshelf.presentation.results.ResultsContract.Notice
 import com.canolabs.movieshelf.testing.movie
-import com.canolabs.movieshelf.testing.query
 import com.canolabs.movieshelf.testing.search
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

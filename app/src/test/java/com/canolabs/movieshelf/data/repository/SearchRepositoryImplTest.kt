@@ -10,16 +10,18 @@ import com.canolabs.movieshelf.testing.movieDto
 import com.canolabs.movieshelf.testing.query
 import com.canolabs.movieshelf.testing.search
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SearchRepositoryImplTest {
 
     private val local = FakeMovieLocalDataSource()

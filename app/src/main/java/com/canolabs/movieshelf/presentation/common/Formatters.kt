@@ -25,9 +25,6 @@ fun formatReleaseDate(isoDate: String?): String? {
     }
 }
 
-fun releaseYear(isoDate: String?): String? =
-    isoDate?.takeIf { it.length >= 4 && it.take(4).all(Char::isDigit) }?.take(4)
-
 /** TMDB ratings are 0–10; `null` or 0 votes means "not rated yet". */
 fun formatRating(voteAverage: Double?, voteCount: Int?): String? {
     if (voteAverage == null || voteAverage <= 0.0 || voteCount == 0) return null
