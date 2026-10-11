@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark window theme; the background mirrors backgroundDark in Color.kt. See values/themes.xml. -->
+    <style name="Theme.MovieShelf" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF131318</item>
+    </style>
+</resources>

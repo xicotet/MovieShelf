@@ -2,10 +2,10 @@ package com.canolabs.movieshelf.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.font.FontFamily
-
-import androidx.compose.ui.text.googlefonts.GoogleFont
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.R
+import androidx.compose.ui.text.googlefonts.GoogleFont
+import com.canolabs.movieshelf.R
 
 val provider: GoogleFont.Provider = GoogleFont.Provider(
     providerAuthority = "com.google.android.gms.fonts",
@@ -13,18 +13,22 @@ val provider: GoogleFont.Provider = GoogleFont.Provider(
     certificates = R.array.com_google_android_gms_fonts_certs
 )
 
+// Downloadable fonts are resolved at runtime through Google Play services. Each weight used by the
+// type scale is declared explicitly so text is not rendered with synthesized bold.
+private val inter = GoogleFont("Inter")
+private val spaceGrotesk = GoogleFont("Space Grotesk")
+
 val bodyFontFamily = FontFamily(
-    Font(
-        googleFont = GoogleFont("Inter"),
-        fontProvider = provider,
-    )
+    Font(googleFont = inter, fontProvider = provider, weight = FontWeight.Normal),
+    Font(googleFont = inter, fontProvider = provider, weight = FontWeight.Medium),
+    Font(googleFont = inter, fontProvider = provider, weight = FontWeight.SemiBold),
 )
 
 val displayFontFamily = FontFamily(
-    Font(
-        googleFont = GoogleFont("Space Grotesk"),
-        fontProvider = provider,
-    )
+    Font(googleFont = spaceGrotesk, fontProvider = provider, weight = FontWeight.Normal),
+    Font(googleFont = spaceGrotesk, fontProvider = provider, weight = FontWeight.Medium),
+    Font(googleFont = spaceGrotesk, fontProvider = provider, weight = FontWeight.SemiBold),
+    Font(googleFont = spaceGrotesk, fontProvider = provider, weight = FontWeight.Bold),
 )
 
 // Default Material 3 typography values

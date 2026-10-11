@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.MovieShelf" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        Window-level theme only: no action bar, and a window background matching the Compose theme so
+        cold start and the system splash screen do not flash a different color before the first frame.
+        All UI colors and typography come from the Compose AppTheme (ui/theme); the value below mirrors
+        backgroundLight in Color.kt and is the only color defined in XML.
+    -->
+    <style name="Theme.MovieShelf" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFFCF8FF</item>
+    </style>
 </resources>

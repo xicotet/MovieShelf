@@ -1,3 +1,78 @@
 <resources>
     <string name="app_name">MovieShelf</string>
+
+    <!-- Search -->
+    <string name="search_placeholder">Search movies</string>
+    <string name="search_headline">Find your next film</string>
+    <string name="search_supporting">Search millions of titles from The Movie Database. Results are saved on your device, so you can come back to them offline.</string>
+    <string name="search_tmdb_attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
+
+    <!-- Search entry -->
+    <string name="search_entry_recent">Recent searches</string>
+    <string name="search_entry_no_recent">Your recent searches will appear here.</string>
+    <string name="search_entry_no_matching_recent">No recent searches match.</string>
+    <string name="search_entry_submit_hint">Press search on the keyboard to find “%1$s”</string>
+    <string name="action_back">Back</string>
+    <string name="action_clear_text">Clear text</string>
+    <string name="action_search">Search</string>
+    <string name="action_fill_query">Edit “%1$s”</string>
+
+    <!-- Results -->
+    <string name="results_loading">Searching for “%1$s”…</string>
+    <string name="results_empty_title">No movies found</string>
+    <string name="results_empty_message">Nothing matched “%1$s”. Check the spelling or try another title.</string>
+    <string name="results_new_search">New search</string>
+    <string name="results_stale_network">Couldn’t reach TMDB. Showing saved results.</string>
+    <string name="results_stale_generic">Couldn’t refresh. Showing saved results.</string>
+    <string name="results_updated">Updated %1$s</string>
+    <string name="results_retrying">Retrying…</string>
+    <string name="results_still_offline">Still offline. Connect to the internet and try again.</string>
+    <string name="results_stale_timeout">TMDB took too long to respond. Showing saved results.</string>
+    <string name="results_notice_offline_saved">You’re offline. Showing saved results.</string>
+    <string name="results_notice_offline_local">You’re offline. These are saved movies whose titles match. Connect to search all of TMDB.</string>
+    <string name="results_notice_back_online_saved">You’re back online. Retry to refresh these results.</string>
+    <string name="results_notice_back_online_local">You’re back online. Retry to search all of TMDB.</string>
+    <string name="results_notice_network_local">Couldn’t reach TMDB. These are saved movies whose titles match.</string>
+    <string name="results_notice_timeout_local">TMDB took too long to respond. These are saved movies whose titles match.</string>
+    <string name="results_offline_title">You’re offline</string>
+    <string name="results_offline_no_matches">No saved movies match “%1$s”. Connect to the internet and retry to search TMDB.</string>
+    <string name="results_back_online_title">You’re back online</string>
+    <string name="results_back_online_message">Retry to search TMDB for “%1$s”.</string>
+    <string name="results_interrupted_title">Search didn’t finish</string>
+    <string name="results_interrupted_message">The search for “%1$s” was interrupted before it completed. Try again.</string>
+    <plurals name="results_count">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
+    <plurals name="results_local_count">
+        <item quantity="one">%1$d saved movie matches</item>
+        <item quantity="other">%1$d saved movies match</item>
+    </plurals>
+    <string name="results_edit_search">Edit search, current query %1$s</string>
+    <string name="poster_description">Poster for %1$s</string>
+    <string name="rating_description">Rated %1$s out of 10</string>
+
+    <!-- Detail -->
+    <string name="detail_overview">Overview</string>
+    <string name="detail_no_overview">No overview available.</string>
+    <string name="detail_rating_votes">%1$s votes</string>
+    <string name="detail_release_unknown">Release date unknown</string>
+    <string name="detail_not_rated">Not rated yet</string>
+    <string name="detail_extras_unavailable">Runtime and genres couldn’t be loaded right now.</string>
+    <string name="detail_missing_title">Movie not available</string>
+    <string name="detail_missing_message">This movie isn’t saved on your device and couldn’t be loaded.</string>
+    <string name="detail_out_of_ten">/ 10</string>
+
+    <!-- Errors -->
+    <string name="action_retry">Retry</string>
+    <string name="error_network_title">Can’t reach TMDB</string>
+    <string name="error_network_message">Couldn’t reach TMDB. Check your connection and try again.</string>
+    <string name="error_timeout_title">TMDB is taking too long</string>
+    <string name="error_timeout_message">The request timed out before TMDB responded. Try again in a moment.</string>
+    <string name="error_unauthorized_title">API key rejected</string>
+    <string name="error_unauthorized_message">TMDB didn’t accept the configured API key. Check TMDB_API_KEY in local.properties and rebuild.</string>
+    <string name="error_not_found_title">Not found</string>
+    <string name="error_not_found_message">TMDB couldn’t find what you were looking for.</string>
+    <string name="error_generic_title">Something went wrong</string>
+    <string name="error_generic_message">The movie service didn’t respond as expected. Please try again.</string>
 </resources>
