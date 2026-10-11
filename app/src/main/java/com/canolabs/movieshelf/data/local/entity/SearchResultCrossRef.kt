@@ -19,8 +19,8 @@ private const val PARENT_COLUMN_MOVIE_ID = "id"
  * response so ordering is stable.
  *
  * - Deleting a query cascades to its memberships.
- * - A movie cannot be deleted while any query still references it (RESTRICT); unreferenced movies
- *   are pruned explicitly after a result set is replaced.
+ * - A movie cannot be deleted while any query still references it (RESTRICT). Movies are never
+ *   pruned, even when no query references them, so they stay available for offline title search.
  */
 @Entity(
     tableName = TABLE_SEARCH_RESULTS,

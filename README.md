@@ -1,131 +1,271 @@
 # MovieShelf
 
-An Android app for searching movies on [The Movie Database (TMDB)](https://www.themoviedb.org/), browsing the results, and viewing movie details. It's built offline-first: every search result is stored in a local Room database, and that database is what the UI displays, so earlier searches still work without a connection.
+MovieShelf is an Android app for searching movies on [The Movie Database (TMDB)](https://www.themoviedb.org/). You can search for a title, browse the results, open a movie to see its details, and come back to everything you have already searched when you have no connection.
 
-## Features
+## Contents
 
-- **Search**: tap the search bar on the start screen and it expands into a full-screen search page, in the style of Google Maps. That page shows your recent searches, stored on the device. A request is only sent when you submit; typing alone never sends one.
-- **Results**: a poster grid showing each movie's title, release date and TMDB rating. There are separate loading, empty, error and offline states, plus pull-to-refresh.
-- **Detail**: poster, backdrop, title, release date, runtime, rating, tagline, genres and overview. The poster animates from the results grid into the detail page (a shared-element transition).
-- **Offline**:
-  - Earlier searches open instantly from the cache.
-  - If a refresh fails, the cached results stay on screen with a banner that offers Retry.
-  - A search that was never cached shows an error, not an empty list.
-  - The detail page shows whatever is stored locally.
-- Light and dark themes come from a palette generated with Material Theme Builder. Space Grotesk is used for headings and Inter for body text.
+1. [Build and run](#build-and-run)
+2. [Screenshots](#screenshots)
+3. [Features](#features)
+4. [Architecture](#architecture)
+5. [Libraries](#libraries)
+6. [Offline first, and then local search](#offline-first-and-then-local-search)
+7. [Decisions worth explaining](#decisions-worth-explaining)
+8. [Tests](#tests)
+9. [Known limitations](#known-limitations)
+10. [Future developments](#future-developments)
 
 ## Build and run
 
-Requirements: a recent Android Studio, Android SDK 37, and a device or emulator running API 24 or newer. The Gradle daemon runs on JDK 25 (`gradle/gradle-daemon-jvm.properties`), which Gradle downloads automatically if it is not installed.
+### What you need
 
-1. Get a TMDB **API key (v3 auth)**. A free account is enough: <https://www.themoviedb.org/settings/api>.
-2. Add the key to `local.properties` in the project root. This file is git-ignored and must never be committed:
-   ```properties
-   TMDB_API_KEY=your_v3_api_key
-   ```
-   On CI you can supply a `TMDB_API_KEY` environment variable instead.
-3. Build and install:
-   ```bash
-   ./gradlew :app:installDebug
-   ```
-   You can also run the `app` configuration from Android Studio.
+- A recent version of Android Studio that supports Android Gradle Plugin 9.3.
+- Android SDK Platform 37. Android Studio offers to install it the first time you sync if it is missing.
+- An emulator or a device running Android 7.0 (API 24) or newer.
+- A free TMDB account to get an API key.
 
-If the key is missing or invalid, the app still builds, and searches show an "API key rejected" message.
+You don't need to install a specific JDK. The project declares a Gradle daemon toolchain (JDK 25), and Gradle downloads it automatically the first time if your machine doesn't have it.
 
-> The key is compiled into `BuildConfig`. Keeping it out of Git prevents accidental publication, but any key shipped inside an APK can be extracted. A production app would route requests through its own backend.
+### 1. Get a TMDB API key
 
-### Tests
+Create an account at [themoviedb.org](https://www.themoviedb.org/signup), then go to **Settings > API** and request a developer key. When it's ready you will see two values on that page. Copy the one called **API Key**. The app sends it as the `api_key` query parameter, so the longer "API Read Access Token" will not work.
 
-```bash
-./gradlew :app:testDebugUnitTest
+### 2. Add the key to `local.properties`
+
+Open (or create) `local.properties` in the root folder of the project and add this line:
+
+```properties
+TMDB_API_KEY=paste_your_key_here
 ```
 
-All tests are plain JVM unit tests. They don't need a network connection or an API key.
+Android Studio usually creates this file already with an `sdk.dir` line in it. Leave that line as it is and just add yours below. The file is ignored by Git, so your key never ends up in a commit.
+
+That's the only setup step. I tested it on a clean copy of the repository: the build reads the key from that file, and if you add it after a first build, the next build picks it up without any extra step.
+
+If you prefer, you can also pass the key as an environment variable called `TMDB_API_KEY`, which is handy on CI.
+
+### 3. Run the app
+
+From Android Studio, open the project, wait for the Gradle sync to finish, choose the `app` run configuration and press Run.
+
+From the command line, with a device or emulator connected:
+
+```bash
+./gradlew :app:installDebug
+```
+
+If the key is missing or wrong the app still builds and opens, but every search shows a message saying that TMDB didn't accept the API key.
+
+### Running the tests
+
+```bash
+# JVM unit tests (no device, network or API key needed)
+./gradlew :app:testDebugUnitTest
+
+# Instrumented tests (Room DAOs, database migrations and a few UI tests), needs a device or emulator
+./gradlew :app:connectedDebugAndroidTest
+```
+
+> A note on the key: it gets compiled into `BuildConfig`, so keeping it out of Git only protects it from being published by accident. Anyone with the APK could still extract it. A real product would send these requests through its own backend.
+
+## Screenshots
+
+All of them were taken on the Android emulator (Medium Phone profile, API 36).
+
+<table>
+  <tr>
+    <td align="center"><img src="screenshots/home.png" width="240" alt="Home screen"><br>Home</td>
+    <td align="center"><img src="screenshots/search-entry.png" width="240" alt="Full-screen search with recent searches"><br>Search with recent searches</td>
+    <td align="center"><img src="screenshots/results-loading.png" width="240" alt="Results loading placeholders"><br>Loading</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/results.png" width="240" alt="Search results grid"><br>Results</td>
+    <td align="center"><img src="screenshots/detail.png" width="240" alt="Movie detail"><br>Movie detail</td>
+    <td align="center"><img src="screenshots/discover.png" width="240" alt="Discover popular movies"><br>Discover</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/offline-cached.png" width="240" alt="Offline with saved results"><br>Offline, saved results</td>
+    <td align="center"><img src="screenshots/offline-local-matches.png" width="240" alt="Offline with saved movies that match the title"><br>Offline, new query with local matches</td>
+    <td align="center"><img src="screenshots/offline-no-match.png" width="240" alt="Offline with nothing saved"><br>Offline, nothing saved</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="screenshots/settings.png" width="240" alt="Settings sheet"><br>Settings</td>
+    <td align="center"><img src="screenshots/home-dark.png" width="240" alt="Home in dark theme"><br>Home, dark theme</td>
+    <td align="center"><img src="screenshots/detail-dark.png" width="240" alt="Movie detail in dark theme"><br>Movie detail, dark theme</td>
+  </tr>
+</table>
+
+## Features
+
+**Core features**
+
+- Search movies through the TMDB API.
+- Show results with title, release date and poster.
+- Show a detail page with title, overview, release date, rating and poster.
+- Loading, empty and error states.
+- Search results cached in a local database and available offline.
+- Written in Kotlin with MVVM, a repository layer and unit tests for ViewModels and repositories.
+
+**More features**
+
+- A full-screen search page that opens from the search bar on Home, similar to Google Maps. It lists your recent searches, and you can long-press one to remove it.
+- A request is only sent when you submit the search. Typing doesn't trigger anything.
+- The poster moves from the results grid into the detail page with a shared-element transition.
+- A "Load more" button to fetch further pages of results. Every page you load is saved too.
+- Discover, which shows what's popular on TMDB right now.
+- When you're offline and search for something new, the app looks through the movies it has already saved and shows the ones whose titles match.
+- The app follows the device's connection. It tells you when you're offline and when you're back online, and it doesn't send requests it knows will fail.
+- A settings sheet to pick the theme (system, light or dark) and the text size. These are stored with DataStore.
+- A "View on TMDB" button on the detail page.
+- Pull to refresh on the results.
 
 ## Architecture
 
-There is a single Gradle module. Packages are split into Clean Architecture layers, and dependencies point inward: `presentation -> domain <- data`.
+The app follows Clean Architecture with MVVM, inside a single Gradle module. I didn't split it into several modules because the project is small and the extra build setup wouldn't pay off yet. Instead, the layers are separate packages and the dependencies only go one way:
+
+```
+presentation  ->  domain  <-  data
+```
+
+The domain layer is plain Kotlin. It knows nothing about Android, Room, Ktor or Koin, so it's easy to test and to replace the pieces around it.
 
 ```
 com.canolabs.movieshelf
-├── app/                 Application (Koin and Coil setup), Navigation 3 host and destinations
-├── di/                  Koin modules: network, data, domain, app (ViewModels)
-├── domain/              Plain Kotlin, no Android, Room, Ktor or Koin
-│   ├── model/           SearchQuery, Movie, MovieDetails, CachedSearch, RecentSearch, RefreshResult
-│   ├── repository/      SearchRepository, MovieRepository (contracts)
-│   └── usecase/         One interface and implementation per use case, each with a single invoke()
+├── app/            Application class and the Navigation 3 setup
+├── di/             Koin modules (network, data, domain, app)
+├── domain/
+│   ├── model/        Plain models such as Movie, SearchQuery, CachedSearch, RefreshResult
+│   ├── repository/   Repository contracts (search, movies, settings, connectivity)
+│   └── usecase/      One use case per action, each with a single invoke()
 ├── data/
-│   ├── remote/          Ktor service, DTOs, MovieRemoteDataSource (maps errors to DataError)
-│   ├── local/           Room entities, DAOs, database, MovieLocalDataSource (transactional writes)
-│   ├── mapper/          DTO -> Entity -> Domain
-│   └── repository/      Repository implementations that coordinate the local and remote sources
-├── presentation/        Compose screens and ViewModels: search, searchentry, results, detail, shared components
-└── ui/theme/            Generated Material Theme Builder theme
+│   ├── remote/       Ktor service, DTOs and the remote data source
+│   ├── local/        Room entities, DAOs, database, migrations and the local data source
+│   ├── connectivity/ Network status from ConnectivityManager
+│   ├── mapper/       DTO to entity and entity to domain mappers
+│   └── repository/   Repository implementations that coordinate local and remote
+├── presentation/   Compose screens and their ViewModels (home, searchentry, results, detail, settings)
+└── ui/theme/       Material 3 theme, colours and typography
 ```
 
-| Concern | Choice |
+You can browse the code under [`app/src/main/java/com/canolabs/movieshelf`](app/src/main/java/com/canolabs/movieshelf).
+
+A few rules I kept throughout:
+
+- DTOs stay in the remote package and Room entities stay in the local package. The rest of the app only sees domain models.
+- ViewModels talk to use cases, never to a DAO or to the HTTP client.
+- Each use case has an interface and an implementation, so tests can swap them easily.
+- The repository decides when to call the network and when to read Room. The local and remote data sources don't know about each other.
+
+### Screens and state
+
+There is one ViewModel per screen, and each one exposes its state as a `StateFlow`.
+
+Most screens are plain MVVM. The Results screen is the exception: it uses a small MVI contract with a `UiState`, `UiIntent` and `UiAction`, plus a pure reducer function. I made that choice because this screen has to merge several things at once: the cached results from Room, the matching saved movies, the connection status, the state of the refresh and the state of "Load more". Putting all of that in one reducer made the tricky combinations easy to read and easy to unit test, for example "offline, nothing cached, but some saved movies match the title". I didn't build a generic MVI framework. The contract lives only on that screen.
+
+### Navigation and motion
+
+Navigation uses Jetpack Navigation 3. The back stack is a list of serializable keys (Home, Search entry, Results and Movie detail), so it survives process death. Each Results entry gets its own ViewModel, so a screen can never show the results of a different query.
+
+The whole navigation host sits inside one `SharedTransitionLayout`. That allows two transitions: the search bar on Home grows into the full-screen search field, and the poster flies from the results grid into the detail page. The shared-element keys come from the movie ID.
+
+## Libraries
+
+| Area | Library |
 |---|---|
-| UI | Jetpack Compose, Material 3 |
-| Navigation | Navigation 3 (`NavDisplay`, serializable `NavKey` back stack, ViewModel scoping per entry) |
+| UI | Jetpack Compose with Material 3 |
+| Navigation | Navigation 3 |
 | Networking | Ktor Client (OkHttp engine) with kotlinx.serialization |
-| Persistence | Room (KSP) |
+| Local database | Room, with KSP |
+| Preferences | DataStore Preferences |
 | Dependency injection | Koin |
 | Images | Coil 3, using its Ktor network fetcher |
-| Async | Coroutines and Flow (`StateFlow` with `stateIn(WhileSubscribed(5_000))`) |
+| Animations | Lottie for the Home illustration, Compose shared transitions for screen changes |
+| Async | Kotlin Coroutines and Flow |
+| Fonts | Downloadable Google Fonts (Space Grotesk and Inter) |
+| Tests | JUnit 4, kotlinx-coroutines-test, Ktor MockEngine, Room testing, Compose UI test |
 
-### How data moves
+All versions are stable releases and live in [`gradle/libs.versions.toml`](gradle/libs.versions.toml).
+
+## Offline first, and then local search
+
+I built the offline support in two steps.
+
+### Step 1: Room as the single source of truth
+
+The UI never displays a network response directly. A search goes like this:
 
 ```
-Submit -> Ktor (one-shot suspend call) -> DTO -> Entity -> Room transaction
-                                                              │
-Compose <- ViewModel StateFlow <- use case <- repository <- DAO Flow <- (Room is the single source of truth)
+User submits -> Ktor request -> DTOs -> entities -> Room transaction
+                                                         |
+Compose <- ViewModel StateFlow <- use case <- repository <- Room Flow
 ```
 
-- A successful response is written to Room in **one transaction** before `refresh()` returns. The UI only ever displays data read back from Room, never the raw network response.
-- The schema:
-  - `movies`: one row per TMDB movie.
-  - `search_queries`: one row per normalized query. It holds the display text, `last_searched_at` (which drives Recent searches) and `last_refreshed_at`.
-  - `search_results`: a junction table with a composite key `(query_key, movie_id)` and a `position` column, so API order is preserved.
-- Deleting a query also deletes its result rows (`CASCADE`). A movie can't be deleted while any query still points to it (`RESTRICT`). After a result set is replaced, movies that no query references any more are removed.
-- `last_refreshed_at == null` means "searched, but never fetched successfully". This is how the app tells a cache miss apart from a valid empty result. An empty success replaces the query's old results; a failure changes nothing.
-- A query's metadata and its ordered results are read with a single `LEFT JOIN`. The screen therefore never sees a half-updated combination of the two.
-- Search refreshes only update a movie's summary columns. Runtime, genres and tagline fetched from the detail endpoint are kept.
+The network call is a one-shot suspend function. When it succeeds, the results are written to Room in a single transaction, and the screen only updates because Room emits the new data. That gives a few useful properties:
 
-### State and stale requests
+- A search you have done before opens instantly from the database, with or without a connection.
+- If a refresh fails, the cached results stay on screen with a notice and a Retry button. Nothing gets deleted.
+- A successful response with zero results is a real answer, so it replaces the old results for that query.
+- If nothing is cached and the request fails, the app shows an error. It doesn't pretend the search returned nothing.
+- Each query is stored under a normalized key (trimmed, extra spaces removed, lower case), so "Dune" and " dune " share the same cache, while results of one query can never appear under another one.
 
-- **Results** uses a small, screen-specific MVI contract (`ResultsContract`: `UiState`, `UiIntent`, `UiAction`, plus a pure reducer). That screen combines two independent asynchronous sources, the cached results and the status of the network refresh, and also sends navigation as one-off actions. A reducer makes combinations such as "refresh failed but cached content exists" explicit and testable. The other screens are simpler and use plain MVVM.
-- Each submitted query gets its own Results destination and ViewModel, so a screen can't show another query's results. Leaving a destination cancels its request. Within one screen, a new refresh cancels the previous one, and a generation counter discards any result that was already finishing. A late response for an older query only updates that query's own cache.
-- A Results destination exists only because a query was submitted. That submission's request runs once. A flag in `SavedStateHandle` ensures that recomposition, configuration changes and process recreation don't send it again.
-- The text you type in the search field is kept with `rememberSaveable`. The back stack is made of serializable keys, so it survives process recreation.
+The database has three tables: `movies`, with one row per TMDB movie, `search_queries`, with one row per query, and `search_results`, a junction table that links them and keeps each result's position, so the order from TMDB is preserved. Refreshing a search only updates the summary columns of a movie, so the runtime, genres and tagline fetched by the detail page are not lost.
 
-### Motion
+### Step 2: searching what's already on the device
 
-- Everything is wrapped in a single `SharedTransitionLayout`, and its scope is passed to `NavDisplay`.
-- The search bar shares its bounds with the full-screen search field, so the bar appears to expand into the search page.
-- Posters use `sharedElement` with a key derived from the movie ID (`poster-<id>`). Results and Detail load the same image URL, so Coil serves the flying poster from its memory cache.
-- The Detail destination receives the poster URL as a presentation hint next to the movie ID. That lets it draw the shared poster on the first frame, before Room's first emission. The data itself always comes from Room.
-- Screen changes use a fade-through with a slight spring scale. That keeps the shared elements as the main source of movement.
+After step 1, a new query typed while offline could only show an error, even if the database already held movies with that title. So I changed two things:
+
+- Movies are never deleted anymore, even when no query points to them. The `movies` table slowly becomes a small local catalogue of everything you have seen.
+- When the device is offline and a query has no cached results, the app runs a title search (`LIKE`) against that catalogue and shows the matches under a clear notice: "These are saved movies whose titles match". Those matches are never written into the query's cache, because they are not real TMDB results.
+
+Around that, the app also became aware of connectivity. It reads the network state from `ConnectivityManager` (ignoring VPNs, which can report a connection that isn't really there). When the device is clearly offline, it doesn't send the request at all and goes straight to saved data. When the connection comes back, it shows a "You're back online" notice with a Retry button, but it never fires a request on its own. Requests only happen when the user asks for them.
+
+## Decisions worth explaining
+
+- **Search on submit, no debounce.** Sending a request on every keystroke would waste calls and fill the cache with half-typed queries. Recent searches cover the "quick access" part instead.
+- **Ktor instead of Retrofit.** Ktor is coroutine-first and Kotlin-first, and Coil can reuse it for images through its Ktor fetcher.
+- **Koin instead of Hilt.** It needs no annotation processing and keeps the setup short for an app this size. All dependencies are passed through constructors, so tests just use fakes.
+- **Stale requests can't overwrite newer ones.** Every submitted query gets its own Results destination and ViewModel. Inside a screen, a new refresh cancels the previous one, and a generation counter discards a result that was already on its way. A late response for an old query only updates that query's own cache.
+- **A search request runs once.** Opening Results sends the request one time. A flag in `SavedStateHandle` makes sure that configuration changes, recomposition or process recreation don't send it again.
+- **Pagination with a button, not infinite scroll.** "Load more" makes it obvious when a new request happens, which matters in an app where the connection can drop at any time.
+- **Room schema exported and migrated.** The database is on version 3, and the migrations from versions 1 and 2 are covered by instrumented tests.
+- **English only, on purpose.** Dates and numbers are formatted in English so the UI doesn't mix languages on a device set to another locale.
 
 ## Tests
 
-51 unit tests:
+There are 162 JVM unit tests and 27 instrumented tests, and none of them needs a real network or an API key.
 
-- `SearchRepositoryImplTest`: response persisted before success is reported; cache kept after a failed refresh; error (not an empty list) when nothing is cached; an empty success replaces old results; queries isolated from each other; normalized cache keys; API order kept; duplicate IDs removed; movies shared by several queries keep their data; recent searches recorded on failure, de-duplicated and ordered by recency; a late response for an older query doesn't touch other queries or the recent-search order.
-- `MovieRepositoryImplTest`: details persisted and exposed through the cache; cache kept after a failure; a search refresh doesn't erase fetched details.
-- `MovieRemoteDataSourceImplTest` (Ktor `MockEngine`): request parameters; mapping of 401, 404, 5xx, malformed JSON and I/O errors; an empty result list counts as a success.
-- `ResultsViewModelTest`: initial state; query submitted exactly once, including after process recreation; loading, content, empty and error states; cached content with a refresh-failure notice; refreshing over cached content; retry; no results leaking in from another query; a stale request can't overwrite the latest result; navigation actions.
-- `MovieDetailViewModelTest` and `SearchEntryViewModelTest`: cached rendering without a network call, a single detail fetch, offline handling of extra details, a movie that is neither cached nor fetchable, retry, recent searches, input validation, and no requests while typing.
+The unit tests focus on the repositories and ViewModels:
 
-The repository tests use an in-memory fake of the local data source that follows the same contract as Room.
+- **Repositories:** responses are saved before success is reported, cached results survive a failed refresh, no cache plus a failure gives an error, an empty success replaces old results, queries stay isolated, order is kept, pagination, recent searches and local title matches.
+- **ViewModels:** initial state, submitting a query, loading, content, empty and error states, offline behaviour with and without cached content, "back online", retry, load more, and making sure an older request can't replace the state of a newer one.
+- **Others:** the Results reducer, the remote data source (HTTP errors, bad JSON and I/O errors using Ktor's MockEngine), connectivity, formatters and settings.
+
+The repository tests use an in-memory fake of the local data source that follows the same rules as the Room implementation. The real SQL is covered separately by instrumented tests for the DAOs, title search, pagination and database migrations.
 
 ## Known limitations
 
-- Only the first page of TMDB results (up to 20 movies) is fetched and cached. There is no pagination.
-- Repository tests run against a fake local data source. The SQL in the DAOs (the result join, the partial updates, removal of unreferenced movies) isn't covered by instrumented Room tests.
-- Material 3 Expressive components and motion (`LoadingIndicator`, `MaterialExpressiveTheme`, `MotionScheme.expressive()`) are internal or missing in the latest stable `material3` release (1.4.0). This project uses stable dependencies only, so the app uses stable Material 3 components plus its own spring-based motion.
-- Fonts are downloaded at runtime through Google Play services. On devices without Play services, or before the first download finishes, text falls back to the system font.
-- Images you haven't viewed before can't be shown offline. Posters come from Coil's disk cache, which only contains images that have already been displayed.
-- Library versions are the newest stable releases that the project's Kotlin 2.2.10 compiler can read: Ktor 3.3.3, kotlinx.serialization 1.9.0, Koin 4.1.1 and Coil 3.3.0. Newer releases require Kotlin 2.3 or later.
+- Images you haven't seen yet can't appear offline. Posters come from Coil's disk cache, which only holds images that were already displayed. In the offline screenshot above you can see a placeholder for one of them.
+- The offline title search uses SQL `LIKE`, so it ignores case but not accents. Searching "Amelie" won't find "Amélie" offline.
+- Fonts are downloaded through Google Play services. On a device without Play services the app falls back to the system font.
+- Material 3 Expressive components aren't public in the stable Material 3 release used here (1.4.0), so I stayed with the stable components and added my own spring-based motion.
+- The library versions are the newest ones that work with Kotlin 2.2.10, the version that comes with the Android Gradle Plugin used here. Some newer releases of Ktor, Koin and Coil need Kotlin 2.3 or 2.4, and I preferred not to upgrade the whole toolchain for that alone.
+
+## Future developments
+
+Things I would like to add if I kept working on it:
+
+- **Favourites and watchlist.** Save movies to your own lists, stored in Room so they work offline, with a filter to see only what you haven't watched yet.
+- **Trailers.** TMDB returns the video keys for each movie, so the detail page could play the YouTube trailer.
+- **Cast and crew.** Show the main cast on the detail page and let you open an actor's page to see their other movies.
+- **Similar movies and recommendations** at the bottom of the detail page.
+- **Filters and sorting** by year, genre or rating, using TMDB's discover endpoint.
+- **Smarter offline search.** Ignore accents and use SQLite full-text search (FTS) to also search the overview, not just the title.
+- **Download posters for offline use** in the background with WorkManager, for the searches you've saved.
+- **Tablet and foldable layouts** with a list and detail side by side, using Navigation 3 scenes.
+- **More languages**, using TMDB's `language` parameter and Android's per-app language setting.
+- **Material 3 Expressive** components once they reach a stable release.
+- **A small backend** that holds the API key and forwards requests, so the key doesn't ship inside the app.
+- **CI with GitHub Actions** to run lint and the tests on every push, plus screenshot tests for the main screens.
 
 ---
 
