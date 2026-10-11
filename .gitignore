@@ -1,0 +1,52 @@
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Local Android SDK configuration
+local.properties
+
+# Local secrets and signing configuration
+secrets.properties
+key.properties
+.env
+.env.*
+*.jks
+*.keystore
+
+# Android build outputs and generated files
+captures/
+.externalNativeBuild/
+.cxx/
+lint-results*.html
+lint-results*.xml
+
+# Kotlin
+.kotlin/
+
+# Crash logs
+*.hprof
+*.log
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Temporary editor and backup files
+*.swp
+*.swo
+*~
+*.bak
