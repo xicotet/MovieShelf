@@ -12,6 +12,7 @@ private const val COLUMN_LAST_SEARCHED_AT = "last_searched_at"
 private const val COLUMN_LAST_REFRESHED_AT = "last_refreshed_at"
 private const val COLUMN_LOADED_PAGES = "loaded_pages"
 private const val COLUMN_TOTAL_PAGES = "total_pages"
+private const val COLUMN_IN_HISTORY = "in_history"
 
 /**
  * One row per normalized query. Doubles as the recent-search history (ordered by
@@ -22,6 +23,10 @@ private const val COLUMN_TOTAL_PAGES = "total_pages"
  *
  * Pagination: [loadedPages] TMDB pages are stored for the query (0 until page 1 succeeds) and
  * [totalPages] is TMDB's `total_pages` for it, or `null` when unknown (rows migrated from v1).
+ *
+ * [inHistory] controls whether the row appears in recent searches. Removing a recent search only
+ * clears it, so the query's cached results (which cascade from this row) are kept; the Discover
+ * result set is stored with it cleared.
  */
 @Entity(
     tableName = TABLE_SEARCH_QUERIES,
@@ -35,4 +40,5 @@ data class SearchQueryEntity(
     @ColumnInfo(name = COLUMN_LAST_REFRESHED_AT) val lastRefreshedAt: Long?,
     @ColumnInfo(name = COLUMN_LOADED_PAGES, defaultValue = "0") val loadedPages: Int = 0,
     @ColumnInfo(name = COLUMN_TOTAL_PAGES) val totalPages: Int? = null,
+    @ColumnInfo(name = COLUMN_IN_HISTORY, defaultValue = "1") val inHistory: Boolean = true,
 )

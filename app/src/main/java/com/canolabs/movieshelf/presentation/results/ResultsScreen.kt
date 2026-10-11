@@ -145,6 +145,7 @@ fun ResultsScreen(
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
+    val title = if (state.isDiscover) stringResource(R.string.discover_results_title) else state.query
     Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxSize()) {
         Box {
             Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
@@ -155,10 +156,10 @@ fun ResultsScreen(
                         .align(Alignment.CenterHorizontally),
                 ) {
                     SearchBarPill(
-                        text = state.query,
+                        text = title,
                         isPlaceholder = false,
                         onClick = { onIntent(UiIntent.SearchBarSelected) },
-                        clickLabel = stringResource(R.string.results_edit_search, state.query),
+                        clickLabel = stringResource(R.string.results_edit_search, title),
                         leading = {
                             IconButton(onClick = onBack) {
                                 Icon(
@@ -193,7 +194,13 @@ fun ResultsScreen(
                         label = "results-content",
                     ) { content ->
                         when (content) {
-                            Content.Loading -> LoadingGrid(state.query)
+                            Content.Loading -> LoadingGrid(
+                                if (state.isDiscover) {
+                                    stringResource(R.string.discover_loading)
+                                } else {
+                                    stringResource(R.string.results_loading, state.query)
+                                },
+                            )
                             is Content.Movies -> MoviesGrid(
                                 movies = content.movies,
                                 header = pluralStringResource(R.plurals.results_count, content.movies.size, content.movies.size),
@@ -213,7 +220,7 @@ fun ResultsScreen(
                                 StateMessage(
                                     icon = content.reason.unavailableIcon(),
                                     title = stringResource(content.reason.unavailableTitleRes()),
-                                    message = content.reason.unavailableMessage(state.query),
+                                    message = content.reason.unavailableMessage(state.query, state.isDiscover),
                                     action = {
                                         RetryButton(isRetrying = state.isRefreshing, onRetry = { onIntent(UiIntent.Retry) })
                                     },
@@ -223,7 +230,11 @@ fun ResultsScreen(
                                 StateMessage(
                                     icon = Icons.Rounded.SearchOff,
                                     title = stringResource(R.string.results_empty_title),
-                                    message = stringResource(R.string.results_empty_message, state.query),
+                                    message = if (state.isDiscover) {
+                                        stringResource(R.string.discover_empty_message)
+                                    } else {
+                                        stringResource(R.string.results_empty_message, state.query)
+                                    },
                                     action = {
                                         OutlinedButton(onClick = { onIntent(UiIntent.SearchBarSelected) }) {
                                             Text(stringResource(R.string.results_new_search))
@@ -245,7 +256,7 @@ fun ResultsScreen(
                                 StateMessage(
                                     icon = Icons.Rounded.Refresh,
                                     title = stringResource(R.string.results_interrupted_title),
-                                    message = stringResource(R.string.results_interrupted_message, state.query),
+                                    message = stringResource(R.string.results_interrupted_message, title),
                                     action = {
                                         RetryButton(isRetrying = state.isRefreshing, onRetry = { onIntent(UiIntent.Retry) })
                                     },
@@ -396,14 +407,13 @@ private fun LoadMoreFailure.messageRes(): Int = when (this) {
 
 /** Poster-shaped skeleton tiles: the layout of the content that is about to appear. */
 @Composable
-private fun LoadingGrid(query: String) {
+private fun LoadingGrid(loadingText: String) {
     val pulse by rememberInfiniteTransition(label = "skeleton").animateFloat(
         initialValue = 0.45f,
         targetValue = 0.9f,
         animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
         label = "skeleton-alpha",
     )
-    val loadingText = stringResource(R.string.results_loading, query)
     Column(Modifier.fillMaxSize()) {
         Text(
             text = loadingText,
@@ -482,9 +492,17 @@ private fun Notice.unavailableTitleRes(): Int = when (this) {
 }
 
 @Composable
-private fun Notice.unavailableMessage(query: String): String = when (this) {
-    Notice.Offline -> stringResource(R.string.results_offline_no_matches, query)
-    Notice.BackOnline -> stringResource(R.string.results_back_online_message, query)
+private fun Notice.unavailableMessage(query: String, isDiscover: Boolean): String = when (this) {
+    Notice.Offline -> if (isDiscover) {
+        stringResource(R.string.discover_offline_message)
+    } else {
+        stringResource(R.string.results_offline_no_matches, query)
+    }
+    Notice.BackOnline -> if (isDiscover) {
+        stringResource(R.string.discover_back_online_message)
+    } else {
+        stringResource(R.string.results_back_online_message, query)
+    }
     is Notice.RefreshFailed -> stringResource(error.messageRes())
 }
 

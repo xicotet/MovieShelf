@@ -25,6 +25,16 @@ class TmdbApiService(
             parameter("include_adult", false)
         }.body()
 
+    /** TMDB's default discovery: popular movies, same page format as search. */
+    suspend fun discoverMovies(page: Int = 1): SearchMoviesResponseDto =
+        client.get(config.baseUrl + "discover/movie") {
+            authorize()
+            parameter("sort_by", "popularity.desc")
+            parameter("page", page)
+            parameter("include_adult", false)
+            parameter("include_video", false)
+        }.body()
+
     suspend fun movieDetails(movieId: Long): MovieDetailsDto =
         client.get(config.baseUrl + "movie/$movieId") {
             authorize()

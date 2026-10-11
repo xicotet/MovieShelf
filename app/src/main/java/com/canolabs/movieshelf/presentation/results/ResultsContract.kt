@@ -26,6 +26,8 @@ object ResultsContract {
         val lastUpdatedAt: Long?,
         /** Pagination of TMDB results; only relevant while [content] is [Content.Movies]. */
         val nextPage: NextPage = NextPage.Unavailable,
+        /** TMDB's popular-movies discovery rather than a typed search ([query] is then empty). */
+        val isDiscover: Boolean = false,
     ) {
         /**
          * The pull-to-refresh indicator is only used for refreshes of healthy cached content; while a

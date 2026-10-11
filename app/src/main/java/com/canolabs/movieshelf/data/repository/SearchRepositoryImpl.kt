@@ -11,6 +11,7 @@ import com.canolabs.movieshelf.domain.model.CachedSearch
 import com.canolabs.movieshelf.domain.model.Movie
 import com.canolabs.movieshelf.domain.model.RecentSearch
 import com.canolabs.movieshelf.domain.model.RefreshResult
+import com.canolabs.movieshelf.domain.model.ResultsRequest
 import com.canolabs.movieshelf.domain.model.SearchQuery
 import com.canolabs.movieshelf.domain.repository.SearchRepository
 import kotlinx.coroutines.flow.Flow
@@ -29,32 +30,36 @@ class SearchRepositoryImpl(
     private val clock: () -> Long = System::currentTimeMillis,
 ) : SearchRepository {
 
-    override fun observeResults(query: SearchQuery): Flow<CachedSearch> =
-        local.observeSearchResults(query.key).map { it.toDomain(query) }
+    override fun observeResults(request: ResultsRequest): Flow<CachedSearch> =
+        local.observeSearchResults(request.cacheKey).map { it.toDomain(request) }
 
-    override suspend fun refresh(query: SearchQuery): RefreshResult {
-        local.recordSearch(query.key, query.text, searchedAt = clock())
-        return when (val response = remote.searchMovies(query.text, page = 1)) {
+    override suspend fun refresh(request: ResultsRequest): RefreshResult {
+        // Only typed searches belong to search history; Discover is never recorded.
+        if (request is ResultsRequest.Search) {
+            local.recordSearch(request.query.key, request.query.text, searchedAt = clock())
+        }
+        return when (val response = fetchPage(request, page = 1)) {
             is RemoteResult.Success -> {
                 val refreshedAt = clock()
                 val totalPages = response.data.cappedTotalPages()
                 local.replaceSearchResults(
-                    queryKey = query.key,
-                    displayQuery = query.text,
+                    queryKey = request.cacheKey,
+                    displayQuery = request.label,
                     movies = response.data.results.toEntities(updatedAt = refreshedAt),
                     refreshedAt = refreshedAt,
                     totalPages = totalPages,
+                    inHistory = request is ResultsRequest.Search,
                 )
-                Log.d(TAG, "\"${query.text}\": persisted page 1 of $totalPages (${response.data.results.size} results) to Room")
+                Log.d(TAG, "\"${request.label}\": persisted page 1 of $totalPages (${response.data.results.size} results) to Room")
                 RefreshResult.Success
             }
             is RemoteResult.Failure -> RefreshResult.Failure(response.error)
         }
     }
 
-    override suspend fun loadNextPage(query: SearchQuery): RefreshResult {
+    override suspend fun loadNextPage(request: ResultsRequest): RefreshResult {
         // Only TMDB's own metadata says whether another page exists; never inferred from page size.
-        val pagination = local.pagination(query.key)
+        val pagination = local.pagination(request.cacheKey)
         val totalPages = pagination?.totalPages
         if (pagination == null || pagination.loadedPages < 1 || totalPages == null ||
             pagination.loadedPages >= totalPages
@@ -63,10 +68,10 @@ class SearchRepositoryImpl(
         }
         val page = pagination.loadedPages + 1
         if (page > MAX_TMDB_PAGE) return RefreshResult.Success
-        return when (val response = remote.searchMovies(query.text, page)) {
+        return when (val response = fetchPage(request, page)) {
             is RemoteResult.Success -> {
                 val applied = local.appendSearchResultsPage(
-                    queryKey = query.key,
+                    queryKey = request.cacheKey,
                     page = page,
                     movies = response.data.results.toEntities(updatedAt = clock()),
                     totalPages = response.data.cappedTotalPages(),
@@ -74,9 +79,9 @@ class SearchRepositoryImpl(
                 Log.d(
                     TAG,
                     if (applied) {
-                        "\"${query.text}\": appended page $page (${response.data.results.size} results) to Room"
+                        "\"${request.label}\": appended page $page (${response.data.results.size} results) to Room"
                     } else {
-                        "\"${query.text}\": page $page discarded, stored results changed meanwhile"
+                        "\"${request.label}\": page $page discarded, stored results changed meanwhile"
                     },
                 )
                 RefreshResult.Success
@@ -84,6 +89,19 @@ class SearchRepositoryImpl(
             is RemoteResult.Failure -> RefreshResult.Failure(response.error)
         }
     }
+
+    /** The only place where a typed search and Discover differ: the TMDB endpoint. */
+    private suspend fun fetchPage(request: ResultsRequest, page: Int): RemoteResult<SearchMoviesResponseDto> =
+        when (request) {
+            is ResultsRequest.Search -> remote.searchMovies(request.query.text, page)
+            ResultsRequest.Discover -> remote.discoverMovies(page)
+        }
+
+    private val ResultsRequest.label: String
+        get() = when (this) {
+            is ResultsRequest.Search -> query.text
+            ResultsRequest.Discover -> "Discover"
+        }
 
     /** TMDB's `total_pages`, capped to the highest page TMDB serves; never below the page received. */
     private fun SearchMoviesResponseDto.cappedTotalPages(): Int =
@@ -94,6 +112,10 @@ class SearchRepositoryImpl(
 
     override suspend fun recordSearch(query: SearchQuery) {
         local.recordSearch(query.key, query.text, searchedAt = clock())
+    }
+
+    override suspend fun removeRecentSearch(query: SearchQuery) {
+        local.removeFromHistory(query.key)
     }
 
     /** Read-only: local matches are never written to the query's result cache. */

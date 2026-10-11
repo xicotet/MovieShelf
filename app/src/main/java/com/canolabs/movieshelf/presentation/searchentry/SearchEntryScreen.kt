@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.NorthWest
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +35,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -76,6 +79,7 @@ fun SearchEntryRoute(
         validate = viewModel::validate,
         onBack = onBack,
         onSubmit = onSubmit,
+        onRemoveRecent = viewModel::removeRecent,
     )
 }
 
@@ -86,8 +90,21 @@ fun SearchEntryScreen(
     validate: (String) -> SearchQuery?,
     onBack: () -> Unit,
     onSubmit: (SearchQuery) -> Unit,
+    onRemoveRecent: (SearchQuery) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Text of the recent search whose removal is being confirmed; survives configuration changes.
+    var pendingRemoval by rememberSaveable { mutableStateOf<String?>(null) }
+    pendingRemoval?.let { text ->
+        RemoveRecentSearchDialog(
+            queryText = text,
+            onConfirm = {
+                SearchQuery.from(text)?.let(onRemoveRecent)
+                pendingRemoval = null
+            },
+            onDismiss = { pendingRemoval = null },
+        )
+    }
     var field by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(textFieldValueAtEnd(initialQuery))
     }
@@ -160,6 +177,7 @@ fun SearchEntryScreen(
                     RecentSearchItem(
                         recent = recent,
                         onClick = { onSubmit(recent.query) },
+                        onLongClick = { pendingRemoval = recent.query.text },
                         onFill = { field = textFieldValueAtEnd(recent.query.text) },
                         modifier = Modifier.animateItem(),
                     )
@@ -244,6 +262,7 @@ private fun SearchField(
 private fun RecentSearchItem(
     recent: RecentSearch,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onFill: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -262,7 +281,24 @@ private fun RecentSearchItem(
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick,
+            // Announced by TalkBack, which also exposes the long-press action.
+            onLongClickLabel = stringResource(R.string.recent_remove_action),
+        ),
+    )
+}
+
+/** Confirms removing one recent search. Long-pressing never starts a search. */
+@Composable
+private fun RemoveRecentSearchDialog(queryText: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.recent_remove_title)) },
+        text = { Text(stringResource(R.string.recent_remove_message, queryText)) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.action_delete)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -282,6 +318,7 @@ private fun SearchEntryPreview() {
             validate = SearchQuery::from,
             onBack = {},
             onSubmit = {},
+            onRemoveRecent = {},
         )
     }
 }

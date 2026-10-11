@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.canolabs.movieshelf.domain.model.ConnectivityStatus
 import com.canolabs.movieshelf.domain.model.DataError
 import com.canolabs.movieshelf.domain.model.RefreshResult
+import com.canolabs.movieshelf.domain.model.ResultsRequest
 import com.canolabs.movieshelf.domain.usecase.GetConnectivityStatusUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.LoadNextResultsPageUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.ObserveConnectivityUseCaseImpl
@@ -22,6 +23,7 @@ import com.canolabs.movieshelf.testing.FakeSearchRepository
 import com.canolabs.movieshelf.testing.MainDispatcherRule
 import com.canolabs.movieshelf.testing.movie
 import com.canolabs.movieshelf.testing.query
+import com.canolabs.movieshelf.testing.search
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
@@ -48,8 +50,9 @@ class ResultsViewModelTest {
     private fun createViewModel(
         rawQuery: String = "Batman",
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
+        request: ResultsRequest = search(rawQuery),
     ) = ResultsViewModel(
-        rawQuery = rawQuery,
+        request = request,
         savedStateHandle = savedStateHandle,
         observeSearchResults = ObserveSearchResultsUseCaseImpl(repository),
         refreshSearchResults = RefreshSearchResultsUseCaseImpl(repository),
@@ -82,7 +85,7 @@ class ResultsViewModelTest {
         subscribe(viewModel)
         subscribe(viewModel)
 
-        assertEquals(listOf(query("Batman")), repository.refreshCalls)
+        assertEquals(listOf(search("Batman")), repository.refreshCalls)
     }
 
     @Test
@@ -424,7 +427,7 @@ class ResultsViewModelTest {
         assertEquals(Content.LocalMatches(listOf(movie(2), movie(5))), state.content)
         assertEquals(Notice.Offline, state.notice)
         // Local matches are never turned into a (fake) successful TMDB result for the query.
-        assertFalse(repository.observeResults(query("Batman")).first().hasCachedResult)
+        assertFalse(repository.observeResults(search("Batman")).first().hasCachedResult)
         assertTrue(repository.refreshCalls.isEmpty())
     }
 
@@ -437,7 +440,7 @@ class ResultsViewModelTest {
         subscribe(viewModel)
 
         assertEquals(Content.Loading, viewModel.uiState.value.content)
-        assertEquals(listOf(query("Batman")), repository.refreshCalls)
+        assertEquals(listOf(search("Batman")), repository.refreshCalls)
     }
 
     @Test
@@ -488,7 +491,7 @@ class ResultsViewModelTest {
 
         viewModel.onIntent(UiIntent.Retry)
 
-        assertEquals(listOf(query("Batman")), repository.refreshCalls)
+        assertEquals(listOf(search("Batman")), repository.refreshCalls)
         assertEquals(Content.Movies(listOf(movie(9))), viewModel.uiState.value.content)
     }
 
@@ -568,7 +571,7 @@ class ResultsViewModelTest {
         connectivity.emit(ConnectivityStatus.Unvalidated)
         subscribe(createViewModel(rawQuery = "Robin"))
 
-        assertEquals(listOf(query("Batman"), query("Robin")), repository.refreshCalls)
+        assertEquals(listOf(search("Batman"), search("Robin")), repository.refreshCalls)
     }
 
     @Test
@@ -721,6 +724,91 @@ class ResultsViewModelTest {
     }
 
     // endregion
+
+    // region Discover
+
+    @Test
+    fun `discover requests discover results and records no search`() = runTest {
+        repository.onRefresh = { request ->
+            repository.setCached(request, listOf(movie(1)))
+            RefreshResult.Success
+        }
+        val viewModel = createViewModel(request = ResultsRequest.Discover)
+        subscribe(viewModel)
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf<ResultsRequest>(ResultsRequest.Discover), repository.refreshCalls)
+        assertTrue(repository.recordedSearches.isEmpty())
+        assertTrue(state.isDiscover)
+        assertEquals("", state.query)
+        assertEquals(Content.Movies(listOf(movie(1))), state.content)
+    }
+
+    @Test
+    fun `discover offline shows its cached results with the offline notice`() = runTest {
+        repository.setCached(ResultsRequest.Discover, listOf(movie(1)))
+        connectivity.emit(ConnectivityStatus.Unavailable)
+        val viewModel = createViewModel(request = ResultsRequest.Discover)
+        subscribe(viewModel)
+
+        val state = viewModel.uiState.value
+        assertEquals(Content.Movies(listOf(movie(1))), state.content)
+        assertEquals(Notice.Offline, state.notice)
+        assertTrue(repository.refreshCalls.isEmpty())
+        assertTrue(repository.recordedSearches.isEmpty())
+    }
+
+    @Test
+    fun `discover offline without a cache is honestly unavailable`() = runTest {
+        connectivity.emit(ConnectivityStatus.Unavailable)
+        val viewModel = createViewModel(request = ResultsRequest.Discover)
+        subscribe(viewModel)
+
+        assertEquals(Content.Unavailable(Notice.Offline), viewModel.uiState.value.content)
+    }
+
+    @Test
+    fun `the search bar on discover opens an empty search entry`() = runTest {
+        val viewModel = createViewModel(request = ResultsRequest.Discover)
+
+        viewModel.onIntent(UiIntent.SearchBarSelected)
+
+        assertEquals(UiAction.OpenSearchEntry(""), viewModel.uiActions.first())
+    }
+
+    // endregion
+
+    @Test
+    fun `load more keeps loading until room exposes the new page`() = runTest {
+        repository.setCached(query("Batman"), listOf(movie(1)), loadedPages = 1, totalPages = 3)
+        repository.onRefresh = { RefreshResult.Success }
+        // The repository reports success before the observed cache reflects the new page.
+        repository.onLoadNextPage = { RefreshResult.Success }
+        val viewModel = createViewModel()
+        subscribe(viewModel)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+        assertEquals(NextPage.Loading, viewModel.uiState.value.nextPage)
+
+        repository.setCached(query("Batman"), listOf(movie(1), movie(2)), loadedPages = 2, totalPages = 3)
+        val state = viewModel.uiState.value
+        assertEquals(Content.Movies(listOf(movie(1), movie(2))), state.content)
+        assertEquals(NextPage.Available, state.nextPage)
+    }
+
+    @Test
+    fun `load more stops loading after a bounded wait when the page was discarded`() = runTest {
+        cachedFirstPage(total = 3)
+        repository.onLoadNextPage = { RefreshResult.Success } // e.g. rejected as stale: nothing changes
+        val viewModel = createViewModel()
+        subscribe(viewModel)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+        assertEquals(NextPage.Loading, viewModel.uiState.value.nextPage)
+
+        advanceTimeBy(2_001)
+        assertEquals(NextPage.Available, viewModel.uiState.value.nextPage)
+    }
 
     @Test
     fun `selecting a movie emits an open detail action with its poster`() = runTest {

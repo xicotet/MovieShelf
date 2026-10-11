@@ -10,7 +10,7 @@ import com.canolabs.movieshelf.data.local.entity.SearchResultCrossRef
 
 @Database(
     entities = [MovieEntity::class, SearchQueryEntity::class, SearchResultCrossRef::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class MovieShelfDatabase : RoomDatabase() {

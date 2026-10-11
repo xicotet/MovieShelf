@@ -11,12 +11,13 @@ data object SearchDestination : NavKey
 data class SearchEntryDestination(val initialQuery: String = "") : NavKey
 
 /**
- * One submitted search. [query] is the validated query text (results are looked up by its normalized
- * key); [submissionId] is unique per submission, so submitting the same text again creates a new
- * entry — and therefore a new ViewModel that runs the search — instead of reusing the previous one.
+ * One submitted request. [query] is the validated query text of a typed search (results are looked up
+ * by its normalized key), or `null` for Discover. [submissionId] is unique per submission, so
+ * submitting the same request again creates a new entry — and therefore a new ViewModel that runs it —
+ * instead of reusing the previous one.
  */
 @Serializable
-data class ResultsDestination(val query: String, val submissionId: String) : NavKey
+data class ResultsDestination(val query: String?, val submissionId: String) : NavKey
 
 /**
  * The stable movie ID identifies the destination; Detail reads all data from the local cache.

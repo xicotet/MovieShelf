@@ -1,16 +1,19 @@
 package com.canolabs.movieshelf.di
 
+import com.canolabs.movieshelf.domain.model.ResultsRequest
 import com.canolabs.movieshelf.presentation.detail.MovieDetailViewModel
 import com.canolabs.movieshelf.presentation.results.ResultsViewModel
 import com.canolabs.movieshelf.presentation.searchentry.SearchEntryViewModel
+import com.canolabs.movieshelf.presentation.settings.SettingsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val appModule = module {
-    viewModel { SearchEntryViewModel(observeRecentSearches = get()) }
-    viewModel { (query: String) ->
+    viewModel { SearchEntryViewModel(observeRecentSearches = get(), removeRecentSearch = get()) }
+    viewModel { SettingsViewModel(observeSettings = get(), setThemeMode = get(), setTextSize = get()) }
+    viewModel { (request: ResultsRequest) ->
         ResultsViewModel(
-            rawQuery = query,
+            request = request,
             savedStateHandle = get(),
             observeSearchResults = get(),
             refreshSearchResults = get(),

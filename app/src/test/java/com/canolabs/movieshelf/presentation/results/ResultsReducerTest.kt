@@ -8,6 +8,7 @@ import com.canolabs.movieshelf.presentation.results.ResultsContract.Content
 import com.canolabs.movieshelf.presentation.results.ResultsContract.Notice
 import com.canolabs.movieshelf.testing.movie
 import com.canolabs.movieshelf.testing.query
+import com.canolabs.movieshelf.testing.search
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -16,9 +17,9 @@ import org.junit.Test
 
 class ResultsReducerTest {
 
-    private val miss = CachedSearch(query("Batman"), emptyList(), lastRefreshedAt = null)
-    private val cachedEmpty = CachedSearch(query("Batman"), emptyList(), lastRefreshedAt = 5L)
-    private val cachedMovies = CachedSearch(query("Batman"), listOf(movie(1)), lastRefreshedAt = 5L)
+    private val miss = CachedSearch(search("Batman"), emptyList(), lastRefreshedAt = null)
+    private val cachedEmpty = CachedSearch(search("Batman"), emptyList(), lastRefreshedAt = 5L)
+    private val cachedMovies = CachedSearch(search("Batman"), listOf(movie(1)), lastRefreshedAt = 5L)
     private val local = listOf(movie(2))
 
     private fun reduce(

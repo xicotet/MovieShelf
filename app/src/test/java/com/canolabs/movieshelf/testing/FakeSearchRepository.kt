@@ -4,6 +4,7 @@ import com.canolabs.movieshelf.domain.model.CachedSearch
 import com.canolabs.movieshelf.domain.model.Movie
 import com.canolabs.movieshelf.domain.model.RecentSearch
 import com.canolabs.movieshelf.domain.model.RefreshResult
+import com.canolabs.movieshelf.domain.model.ResultsRequest
 import com.canolabs.movieshelf.domain.model.SearchQuery
 import com.canolabs.movieshelf.domain.repository.SearchRepository
 import kotlinx.coroutines.flow.Flow
@@ -18,8 +19,9 @@ class FakeSearchRepository : SearchRepository {
     private val cache = MutableStateFlow<Map<String, CachedSearch>>(emptyMap())
     private val recent = MutableStateFlow<List<RecentSearch>>(emptyList())
 
-    val refreshCalls = mutableListOf<SearchQuery>()
+    val refreshCalls = mutableListOf<ResultsRequest>()
     val recordedSearches = mutableListOf<SearchQuery>()
+    val removedRecentSearches = mutableListOf<SearchQuery>()
     private val localMatches = MutableStateFlow<Map<String, List<Movie>>>(emptyMap())
 
     /** Saved movies matching [query]'s title, as the local catalogue would return them. */
@@ -31,9 +33,19 @@ class FakeSearchRepository : SearchRepository {
      * Default: succeed with an empty result, persisted before returning like the real repository.
      * Tests replace it to script outcomes.
      */
-    var onRefresh: suspend (SearchQuery) -> RefreshResult = { q ->
-        setCached(q, emptyList())
+    var onRefresh: suspend (ResultsRequest) -> RefreshResult = { request ->
+        setCached(request, emptyList())
         RefreshResult.Success
+    }
+
+    fun setCached(
+        request: ResultsRequest,
+        movies: List<Movie>,
+        refreshedAt: Long = 1L,
+        loadedPages: Int = 1,
+        totalPages: Int? = 1,
+    ) {
+        cache.update { it + (request.cacheKey to CachedSearch(request, movies, refreshedAt, loadedPages, totalPages)) }
     }
 
     fun setCached(
@@ -42,37 +54,37 @@ class FakeSearchRepository : SearchRepository {
         refreshedAt: Long = 1L,
         loadedPages: Int = 1,
         totalPages: Int? = 1,
-    ) {
-        cache.update { it + (query.key to CachedSearch(query, movies, refreshedAt, loadedPages, totalPages)) }
-    }
+    ) = setCached(ResultsRequest.Search(query), movies, refreshedAt, loadedPages, totalPages)
 
-    /** Current cached snapshot, for scripting next-page responses. */
-    fun cached(query: SearchQuery): CachedSearch? = cache.value[query.key]
-
-    val nextPageCalls = mutableListOf<SearchQuery>()
+    val nextPageCalls = mutableListOf<ResultsRequest>()
 
     /** Default: append nothing and succeed. Tests replace it to script outcomes. */
-    var onLoadNextPage: suspend (SearchQuery) -> RefreshResult = { RefreshResult.Success }
+    var onLoadNextPage: suspend (ResultsRequest) -> RefreshResult = { RefreshResult.Success }
 
     fun setRecent(vararg searches: RecentSearch) {
         recent.value = searches.toList()
     }
 
-    override fun observeResults(query: SearchQuery): Flow<CachedSearch> = cache
-        .map { it[query.key] ?: CachedSearch(query, emptyList(), lastRefreshedAt = null) }
+    override fun observeResults(request: ResultsRequest): Flow<CachedSearch> = cache
+        .map { it[request.cacheKey] ?: CachedSearch(request, emptyList(), lastRefreshedAt = null) }
         .distinctUntilChanged()
 
-    override suspend fun refresh(query: SearchQuery): RefreshResult {
-        refreshCalls += query
-        return onRefresh(query)
+    override suspend fun refresh(request: ResultsRequest): RefreshResult {
+        refreshCalls += request
+        return onRefresh(request)
     }
 
-    override suspend fun loadNextPage(query: SearchQuery): RefreshResult {
-        nextPageCalls += query
-        return onLoadNextPage(query)
+    override suspend fun loadNextPage(request: ResultsRequest): RefreshResult {
+        nextPageCalls += request
+        return onLoadNextPage(request)
     }
 
     override fun observeRecentSearches(limit: Int): Flow<List<RecentSearch>> = recent.map { it.take(limit) }
+
+    override suspend fun removeRecentSearch(query: SearchQuery) {
+        removedRecentSearches += query
+        recent.update { list -> list.filterNot { it.query == query } }
+    }
 
     override suspend fun recordSearch(query: SearchQuery) {
         recordedSearches += query

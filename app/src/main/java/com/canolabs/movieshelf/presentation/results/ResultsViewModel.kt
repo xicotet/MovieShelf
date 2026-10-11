@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.canolabs.movieshelf.domain.model.RefreshResult
+import com.canolabs.movieshelf.domain.model.ResultsRequest
 import com.canolabs.movieshelf.domain.model.SearchQuery
 import com.canolabs.movieshelf.domain.usecase.GetConnectivityStatusUseCase
 import com.canolabs.movieshelf.domain.usecase.LoadNextResultsPageUseCase
@@ -24,20 +25,23 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.TimeSource
 
 /**
- * Owns one submitted query for the lifetime of its Results destination. A new query creates a new
- * destination (and ViewModel), so this screen can never display another query's results; leaving
+ * Owns one submitted [ResultsRequest] (a typed search or Discover) for the lifetime of its Results
+ * destination. A new submission creates a new destination (and ViewModel), so this screen can never
+ * display another request's results; leaving
  * the destination cancels its in-flight request with [viewModelScope].
  */
 class ResultsViewModel(
-    rawQuery: String,
+    private val request: ResultsRequest,
     private val savedStateHandle: SavedStateHandle,
     private val observeSearchResults: ObserveSearchResultsUseCase,
     private val refreshSearchResults: RefreshSearchResultsUseCase,
@@ -49,7 +53,9 @@ class ResultsViewModel(
 ) : ViewModel() {
 
     // Results destinations are only created for validated submissions.
-    private val query: SearchQuery = requireNotNull(SearchQuery.from(rawQuery)) { "Results opened for a blank query" }
+    /** The typed query, or `null` for Discover (no title matching, no search history). */
+    private val searchQuery: SearchQuery? = (request as? ResultsRequest.Search)?.query
+    private val label: String = searchQuery?.text ?: "Discover"
 
     private val refreshState = MutableStateFlow(RefreshState())
     private val nextPageState = MutableStateFlow(NextPageState())
@@ -64,6 +70,7 @@ class ResultsViewModel(
     val uiActions: Flow<UiAction> = actions.receiveAsFlow()
 
     private val connectivity = observeConnectivity()
+    private val isDiscover = request is ResultsRequest.Discover
 
     // Until Room's first emission the initial value (no cache known yet) is shown. Local matches are
     // only displayed by the reducer when TMDB is unavailable and nothing is cached for the query.
@@ -73,21 +80,22 @@ class ResultsViewModel(
     // subscribers; loadOnce() is idempotent per instance and per entry, so that never reloads.
     val uiState: StateFlow<UiState> =
         combine(
-            observeSearchResults(query),
-            observeLocalTitleMatches(query),
+            observeSearchResults(request),
+            searchQuery?.let { observeLocalTitleMatches(it) } ?: flowOf(emptyList()),
             connectivity,
             combine(refreshState, nextPageState, ::Pair),
         ) { cache, localMatches, status, (refresh, nextPage) ->
-            reduceResultsState(query.text, cache, localMatches, status, refresh, nextPage)
+            reduceResultsState(searchQuery?.text.orEmpty(), cache, localMatches, status, refresh, nextPage, isDiscover)
         }.onStart { loadOnce() }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = reduceResultsState(
-                query = query.text,
+                query = searchQuery?.text.orEmpty(),
                 cache = null,
                 localMatches = emptyList(),
                 connectivity = connectivity.value,
                 refresh = RefreshState(),
+                isDiscover = isDiscover,
             ),
         )
 
@@ -97,7 +105,7 @@ class ResultsViewModel(
             UiIntent.Retry -> retry()
             UiIntent.LoadMore -> loadMore()
             is UiIntent.MovieSelected -> actions.trySend(UiAction.OpenMovieDetail(intent.movieId, posterUrlOf(intent.movieId)))
-            UiIntent.SearchBarSelected -> actions.trySend(UiAction.OpenSearchEntry(query.text))
+            UiIntent.SearchBarSelected -> actions.trySend(UiAction.OpenSearchEntry(searchQuery?.text.orEmpty()))
         }
     }
 
@@ -121,13 +129,13 @@ class ResultsViewModel(
         loadHandled = true
         if (savedStateHandle.get<Boolean>(KEY_SUBMITTED) != true) {
             savedStateHandle[KEY_SUBMITTED] = true
-            Log.d(TAG, "\"${query.text}\" load: first open")
+            Log.d(TAG, "\"$label\" load: first open")
             submit(recordWhenOffline = true)
             return
         }
         viewModelScope.launch {
-            val completed = observeSearchResults(query).first().hasCachedResult
-            Log.d(TAG, "\"${query.text}\" load: recreated after process death, cached result ${if (completed) "present" else "missing"}")
+            val completed = observeSearchResults(request).first().hasCachedResult
+            Log.d(TAG, "\"$label\" load: recreated after process death, cached result ${if (completed) "present" else "missing"}")
             if (completed) refreshState.update { it.noLoadNeeded() } else submit(recordWhenOffline = false)
         }
     }
@@ -140,7 +148,7 @@ class ResultsViewModel(
     private fun retry() {
         val status = getConnectivityStatus()
         if (status.isConfirmedOffline) {
-            Log.d(TAG, "\"${query.text}\" retry: still offline ($status), no request sent")
+            Log.d(TAG, "\"$label\" retry: still offline ($status), no request sent")
             actions.trySend(UiAction.ShowStillOffline)
             return
         }
@@ -154,10 +162,10 @@ class ResultsViewModel(
             refresh()
             return
         }
-        Log.d(TAG, "\"${query.text}\" submit: offline ($status), showing cached or saved results without a request")
+        Log.d(TAG, "\"$label\" submit: offline ($status), showing cached or saved results without a request")
         refreshState.update { it.skippedBecauseOffline() }
         // The repository records recent searches as part of a refresh; do the same without one.
-        if (recordWhenOffline) viewModelScope.launch { recordSearch(query) }
+        if (recordWhenOffline && searchQuery != null) viewModelScope.launch { recordSearch(searchQuery) }
     }
 
     /**
@@ -166,21 +174,21 @@ class ResultsViewModel(
      */
     private fun refresh() {
         if (refreshState.value.isRunning) {
-            Log.d(TAG, "\"${query.text}\" refresh: ignored, a request is already running")
+            Log.d(TAG, "\"$label\" refresh: ignored, a request is already running")
             return
         }
         val generation = ++refreshGeneration
         refreshState.update { it.started() }
-        Log.d(TAG, "\"${query.text}\" refresh #$generation: started")
+        Log.d(TAG, "\"$label\" refresh #$generation: started")
         val start = TimeSource.Monotonic.markNow()
         viewModelScope.launch {
             try {
-                val result = refreshSearchResults(query)
-                Log.d(TAG, "\"${query.text}\" refresh #$generation: $result after ${start.elapsedNow().inWholeMilliseconds} ms")
+                val result = refreshSearchResults(request)
+                Log.d(TAG, "\"$label\" refresh #$generation: $result after ${start.elapsedNow().inWholeMilliseconds} ms")
                 if (result is RefreshResult.Success) {
                     // The repository has persisted the response; end loading only once Room exposes it,
                     // so the screen goes straight from the previous state to the authoritative data.
-                    observeSearchResults(query).first { it.hasCachedResult }
+                    observeSearchResults(request).first { it.hasCachedResult }
                 }
                 if (generation == refreshGeneration) {
                     refreshState.update {
@@ -191,7 +199,7 @@ class ResultsViewModel(
                     }
                 }
             } catch (e: CancellationException) {
-                Log.d(TAG, "\"${query.text}\" refresh #$generation: cancelled")
+                Log.d(TAG, "\"$label\" refresh #$generation: cancelled")
                 if (generation == refreshGeneration) refreshState.update { it.cancelled() }
                 throw e
             }
@@ -206,27 +214,36 @@ class ResultsViewModel(
      */
     private fun loadMore() {
         if (nextPageState.value.isLoading || refreshState.value.isRunning) {
-            Log.d(TAG, "\"${query.text}\" load more: ignored, a request is already running")
+            Log.d(TAG, "\"$label\" load more: ignored, a request is already running")
             return
         }
         if (uiState.value.nextPage !is ResultsContract.NextPage.Available &&
             uiState.value.nextPage !is ResultsContract.NextPage.Failed
         ) {
-            Log.d(TAG, "\"${query.text}\" load more: ignored, no further page")
+            Log.d(TAG, "\"$label\" load more: ignored, no further page")
             return
         }
         val status = getConnectivityStatus()
         if (status.isConfirmedOffline) {
-            Log.d(TAG, "\"${query.text}\" load more: offline ($status), no request sent")
+            Log.d(TAG, "\"$label\" load more: offline ($status), no request sent")
             nextPageState.value = NextPageState(failure = ResultsContract.LoadMoreFailure.Offline)
             return
         }
         nextPageState.value = NextPageState(isLoading = true)
-        Log.d(TAG, "\"${query.text}\" load more: started")
+        Log.d(TAG, "\"$label\" load more: started")
         viewModelScope.launch {
             try {
-                val result = loadNextResultsPage(query)
-                Log.d(TAG, "\"${query.text}\" load more: $result")
+                val pagesBefore = observeSearchResults(request).first().loadedPages
+                val result = loadNextResultsPage(request)
+                Log.d(TAG, "\"$label\" load more: $result")
+                if (result is RefreshResult.Success) {
+                    // The page is persisted; keep the footer loading until Room exposes it, so the
+                    // button never reappears for a frame next to the old list. Bounded, because the
+                    // repository succeeds without changes when the page was discarded as stale.
+                    withTimeoutOrNull(PAGE_SYNC_TIMEOUT_MS) {
+                        observeSearchResults(request).first { it.loadedPages != pagesBefore }
+                    }
+                }
                 nextPageState.value = when (result) {
                     RefreshResult.Success -> NextPageState()
                     is RefreshResult.Failure -> NextPageState(failure = ResultsContract.LoadMoreFailure.Error(result.error))
@@ -250,5 +267,6 @@ class ResultsViewModel(
     companion object {
         private const val TAG = "ResultsViewModel"
         private const val KEY_SUBMITTED = "results_submitted"
+        private const val PAGE_SYNC_TIMEOUT_MS = 2_000L
     }
 }

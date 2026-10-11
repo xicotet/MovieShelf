@@ -2,6 +2,7 @@ package com.canolabs.movieshelf.presentation.searchentry
 
 import com.canolabs.movieshelf.domain.model.RecentSearch
 import com.canolabs.movieshelf.domain.usecase.ObserveRecentSearchesUseCaseImpl
+import com.canolabs.movieshelf.domain.usecase.RemoveRecentSearchUseCaseImpl
 import com.canolabs.movieshelf.testing.FakeSearchRepository
 import com.canolabs.movieshelf.testing.MainDispatcherRule
 import com.canolabs.movieshelf.testing.query
@@ -21,7 +22,7 @@ class SearchEntryViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val repository = FakeSearchRepository()
-    private val viewModel by lazy { SearchEntryViewModel(ObserveRecentSearchesUseCaseImpl(repository)) }
+    private val viewModel by lazy { SearchEntryViewModel(ObserveRecentSearchesUseCaseImpl(repository), RemoveRecentSearchUseCaseImpl(repository)) }
 
     @Test
     fun `initial state has no recent searches loaded yet`() {
@@ -54,6 +55,18 @@ class SearchEntryViewModelTest {
 
         listOf("B", "Ba", "Bat", "Batman").forEach { viewModel.validate(it) }
 
+        assertTrue(repository.refreshCalls.isEmpty())
+    }
+
+    @Test
+    fun `removing a recent search removes only that entry`() = runTest {
+        repository.setRecent(RecentSearch(query("Heat"), 2L), RecentSearch(query("Alien"), 1L))
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+        viewModel.removeRecent(query("Alien"))
+
+        assertEquals(listOf(query("Alien")), repository.removedRecentSearches)
+        assertEquals(listOf("heat"), viewModel.uiState.value.recentSearches.map { it.query.key })
         assertTrue(repository.refreshCalls.isEmpty())
     }
 }

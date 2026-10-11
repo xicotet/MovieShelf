@@ -43,7 +43,9 @@ class FakeMovieLocalDataSource : MovieLocalDataSource {
         .distinctUntilChanged()
 
     override fun observeRecentSearches(limit: Int): Flow<List<SearchQueryEntity>> = db
-        .map { state -> state.queries.values.sortedByDescending { it.lastSearchedAt }.take(limit) }
+        .map { state ->
+            state.queries.values.filter { it.inHistory }.sortedByDescending { it.lastSearchedAt }.take(limit)
+        }
         .distinctUntilChanged()
 
     override fun observeMovie(movieId: Long): Flow<MovieEntity?> =
@@ -72,7 +74,7 @@ class FakeMovieLocalDataSource : MovieLocalDataSource {
         writes += "recordSearch:$queryKey"
         db.update { state ->
             val existing = state.queries[queryKey]
-            val updated = existing?.copy(displayQuery = displayQuery, lastSearchedAt = searchedAt)
+            val updated = existing?.copy(displayQuery = displayQuery, lastSearchedAt = searchedAt, inHistory = true)
                 ?: SearchQueryEntity(queryKey, displayQuery, searchedAt, lastRefreshedAt = null)
             state.copy(queries = state.queries + (queryKey to updated))
         }
@@ -84,10 +86,11 @@ class FakeMovieLocalDataSource : MovieLocalDataSource {
         movies: List<MovieEntity>,
         refreshedAt: Long,
         totalPages: Int,
+        inHistory: Boolean,
     ) {
         writes += "replaceSearchResults:$queryKey"
         db.update { state ->
-            val query = (state.queries[queryKey] ?: SearchQueryEntity(queryKey, displayQuery, refreshedAt, null))
+            val query = (state.queries[queryKey] ?: SearchQueryEntity(queryKey, displayQuery, refreshedAt, null, inHistory = inHistory))
                 .copy(lastRefreshedAt = refreshedAt, loadedPages = 1, totalPages = totalPages)
             // Movies are never pruned: they stay in the catalogue, as with the real DAO.
             state.copy(
@@ -145,6 +148,17 @@ class FakeMovieLocalDataSource : MovieLocalDataSource {
                 ) ?: movie
                 )
         }
+
+    /** Mirrors SearchDao.removeFromHistory: only the history flag changes. */
+    override suspend fun removeFromHistory(queryKey: String) {
+        writes += "removeFromHistory:$queryKey"
+        db.update { state ->
+            val query = state.queries[queryKey] ?: return@update state
+            state.copy(queries = state.queries + (queryKey to query.copy(inHistory = false)))
+        }
+    }
+
+    fun query(queryKey: String): SearchQueryEntity? = db.value.queries[queryKey]
 
     override suspend fun saveMovieDetails(movie: MovieEntity) {
         writes += "saveMovieDetails:${movie.id}"

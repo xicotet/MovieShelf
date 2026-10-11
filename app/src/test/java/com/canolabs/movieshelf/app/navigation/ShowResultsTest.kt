@@ -1,6 +1,7 @@
 package com.canolabs.movieshelf.app.navigation
 
 import androidx.navigation3.runtime.NavKey
+import com.canolabs.movieshelf.domain.model.ResultsRequest
 import com.canolabs.movieshelf.testing.query
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -47,5 +48,20 @@ class ShowResultsTest {
         val second = backStack.last() as ResultsDestination
 
         assertNotEquals(first.submissionId, second.submissionId)
+    }
+
+    @Test
+    fun `discover opens results without a query`() {
+        val backStack = mutableListOf<NavKey>(SearchDestination)
+
+        backStack.showDiscover(ids)
+
+        assertEquals(listOf(SearchDestination, ResultsDestination(query = null, submissionId = "submission-1")), backStack)
+    }
+
+    @Test
+    fun `a results entry maps to the request it stands for`() {
+        assertEquals(ResultsRequest.Discover, ResultsDestination(query = null, submissionId = "1").toRequest())
+        assertEquals(ResultsRequest.Search(query("Alien")), ResultsDestination(query = "Alien", submissionId = "1").toRequest())
     }
 }

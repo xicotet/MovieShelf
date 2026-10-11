@@ -49,6 +49,7 @@ internal fun reduceResultsState(
     connectivity: ConnectivityStatus,
     refresh: RefreshState,
     nextPage: NextPageState = NextPageState(),
+    isDiscover: Boolean = false,
 ): ResultsContract.UiState {
     val offline = connectivity.isConfirmedOffline
     val hasCachedResult = cache?.hasCachedResult == true
@@ -87,6 +88,7 @@ internal fun reduceResultsState(
         isRefreshing = refresh.isRunning,
         notice = notice?.takeIf { showsNotice },
         lastUpdatedAt = cache?.lastRefreshedAt,
+        isDiscover = isDiscover,
         nextPage = when {
             // Pagination applies to TMDB results only, never to local title matches.
             content !is ResultsContract.Content.Movies -> ResultsContract.NextPage.Unavailable

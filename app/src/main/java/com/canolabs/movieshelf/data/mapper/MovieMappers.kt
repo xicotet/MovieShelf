@@ -11,6 +11,7 @@ import com.canolabs.movieshelf.domain.model.CachedSearch
 import com.canolabs.movieshelf.domain.model.Movie
 import com.canolabs.movieshelf.domain.model.MovieDetails
 import com.canolabs.movieshelf.domain.model.RecentSearch
+import com.canolabs.movieshelf.domain.model.ResultsRequest
 import com.canolabs.movieshelf.domain.model.SearchQuery
 
 // DTO -> Entity
@@ -71,8 +72,8 @@ fun MovieEntity.toDomainDetails() = MovieDetails(
     },
 )
 
-fun CachedQueryResults?.toDomain(query: SearchQuery) = CachedSearch(
-    query = query,
+fun CachedQueryResults?.toDomain(request: ResultsRequest) = CachedSearch(
+    request = request,
     movies = this?.movies?.map { it.toDomain() }.orEmpty(),
     lastRefreshedAt = this?.lastRefreshedAt,
     loadedPages = this?.loadedPages ?: 0,

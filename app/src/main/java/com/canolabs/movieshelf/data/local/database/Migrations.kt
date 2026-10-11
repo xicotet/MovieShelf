@@ -17,3 +17,14 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         db.execSQL("UPDATE search_queries SET loaded_pages = 1 WHERE last_refreshed_at IS NOT NULL")
     }
 }
+
+/**
+ * v2 -> v3: recent searches can be removed without deleting the query's cached results.
+ *
+ * Every existing query stays visible in recent searches.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE search_queries ADD COLUMN in_history INTEGER NOT NULL DEFAULT 1")
+    }
+}

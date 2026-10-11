@@ -28,10 +28,14 @@ abstract class SearchDao {
     )
     abstract fun observeResultRows(queryKey: String): Flow<List<SearchResultRow>>
 
-    @Query("SELECT * FROM search_queries ORDER BY last_searched_at DESC LIMIT :limit")
+    @Query("SELECT * FROM search_queries WHERE in_history = 1 ORDER BY last_searched_at DESC LIMIT :limit")
     abstract fun observeRecent(limit: Int): Flow<List<SearchQueryEntity>>
 
-    /** Creates the query row if needed and marks it as the most recently searched. */
+    /** Hides a query from recent searches; its cached results are untouched. */
+    @Query("UPDATE search_queries SET in_history = 0 WHERE query_key = :queryKey")
+    abstract suspend fun removeFromHistory(queryKey: String)
+
+    /** Creates the query row if needed and marks it as the most recently searched (back in history). */
     @Transaction
     open suspend fun recordSearch(queryKey: String, displayQuery: String, searchedAt: Long) {
         insertIfAbsent(SearchQueryEntity(queryKey, displayQuery, searchedAt, lastRefreshedAt = null))
@@ -79,8 +83,8 @@ abstract class SearchDao {
     abstract suspend fun insertIfAbsent(query: SearchQueryEntity)
 
     @Query(
-        "UPDATE search_queries SET display_query = :displayQuery, last_searched_at = :searchedAt " +
-            "WHERE query_key = :queryKey",
+        "UPDATE search_queries SET display_query = :displayQuery, last_searched_at = :searchedAt, " +
+            "in_history = 1 WHERE query_key = :queryKey",
     )
     protected abstract suspend fun updateLastSearched(queryKey: String, displayQuery: String, searchedAt: Long)
 

@@ -5,10 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.canolabs.movieshelf.domain.model.RecentSearch
 import com.canolabs.movieshelf.domain.model.SearchQuery
 import com.canolabs.movieshelf.domain.usecase.ObserveRecentSearchesUseCase
+import com.canolabs.movieshelf.domain.usecase.RemoveRecentSearchUseCase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class SearchEntryUiState(
     val recentSearches: List<RecentSearch> = emptyList(),
@@ -21,6 +23,7 @@ data class SearchEntryUiState(
  */
 class SearchEntryViewModel(
     observeRecentSearches: ObserveRecentSearchesUseCase,
+    private val removeRecentSearch: RemoveRecentSearchUseCase,
 ) : ViewModel() {
 
     val uiState: StateFlow<SearchEntryUiState> = observeRecentSearches()
@@ -29,4 +32,9 @@ class SearchEntryViewModel(
 
     /** Validates and normalizes user input; returns `null` for blank text, which is not submittable. */
     fun validate(text: String): SearchQuery? = SearchQuery.from(text)
+
+    /** Removes one entry from history; the list updates from Room. Cached results are kept. */
+    fun removeRecent(query: SearchQuery) {
+        viewModelScope.launch { removeRecentSearch(query) }
+    }
 }

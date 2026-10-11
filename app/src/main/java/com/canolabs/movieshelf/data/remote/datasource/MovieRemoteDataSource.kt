@@ -20,6 +20,9 @@ import kotlin.time.TimeSource
 interface MovieRemoteDataSource {
     /** One TMDB result page, including TMDB's pagination metadata. */
     suspend fun searchMovies(query: String, page: Int = 1): RemoteResult<SearchMoviesResponseDto>
+
+    /** One page of TMDB's popular-movies discovery, in the same format as search. */
+    suspend fun discoverMovies(page: Int = 1): RemoteResult<SearchMoviesResponseDto>
     suspend fun movieDetails(movieId: Long): RemoteResult<MovieDetailsDto>
 }
 
@@ -32,6 +35,12 @@ class MovieRemoteDataSourceImpl(
             "search/movie \"$query\" page $page",
             describe = { "${it.results.size} results, page ${it.page} of ${it.totalPages}" },
         ) { api.searchMovies(query, page) }
+
+    override suspend fun discoverMovies(page: Int): RemoteResult<SearchMoviesResponseDto> =
+        safeCall(
+            "discover/movie page $page",
+            describe = { "${it.results.size} results, page ${it.page} of ${it.totalPages}" },
+        ) { api.discoverMovies(page) }
 
     override suspend fun movieDetails(movieId: Long): RemoteResult<MovieDetailsDto> =
         safeCall("movie/$movieId", describe = { "\"${it.title}\"" }) { api.movieDetails(movieId) }

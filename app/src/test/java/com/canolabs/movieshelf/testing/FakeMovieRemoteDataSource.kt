@@ -41,6 +41,21 @@ class FakeMovieRemoteDataSource : MovieRemoteDataSource {
         }
     }
 
+    /** Discover responses by page; unknown pages fail with a network error. */
+    val discoverResponses = mutableMapOf<Int, RemoteResult<List<MovieDto>>>()
+    var discoverTotalPages = 1
+    val discoverCalls = mutableListOf<Int>()
+
+    override suspend fun discoverMovies(page: Int): RemoteResult<SearchMoviesResponseDto> {
+        discoverCalls += page
+        return when (val response = discoverResponses[page] ?: RemoteResult.Failure(DataError.Network)) {
+            is RemoteResult.Success -> RemoteResult.Success(
+                SearchMoviesResponseDto(page = page, results = response.data, totalPages = discoverTotalPages),
+            )
+            is RemoteResult.Failure -> response
+        }
+    }
+
     override suspend fun movieDetails(movieId: Long): RemoteResult<MovieDetailsDto> =
         detailResponses[movieId] ?: RemoteResult.Failure(DataError.Network)
 }

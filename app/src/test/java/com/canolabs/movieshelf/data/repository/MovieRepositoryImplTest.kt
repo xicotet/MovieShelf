@@ -10,6 +10,7 @@ import com.canolabs.movieshelf.testing.FakeMovieLocalDataSource
 import com.canolabs.movieshelf.testing.FakeMovieRemoteDataSource
 import com.canolabs.movieshelf.testing.movieDto
 import com.canolabs.movieshelf.testing.query
+import com.canolabs.movieshelf.testing.search
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -40,7 +41,7 @@ class MovieRepositoryImplTest {
     @Test
     fun `cached search result renders without details extras`() = runTest {
         remote.searchResponses["Arrival"] = RemoteResult.Success(listOf(movieDto(1, "Arrival")))
-        searchRepository.refresh(query("Arrival"))
+        searchRepository.refresh(search("Arrival"))
 
         val cached = repository.observeMovie(1).first()
 
@@ -65,7 +66,7 @@ class MovieRepositoryImplTest {
     @Test
     fun `failed detail refresh keeps the cached movie`() = runTest {
         remote.searchResponses["Arrival"] = RemoteResult.Success(listOf(movieDto(1, "Arrival")))
-        searchRepository.refresh(query("Arrival"))
+        searchRepository.refresh(search("Arrival"))
         remote.detailResponses[1] = RemoteResult.Failure(DataError.Network)
 
         val result = repository.refreshDetails(1)
@@ -77,11 +78,11 @@ class MovieRepositoryImplTest {
     @Test
     fun `a later search refresh keeps previously fetched details`() = runTest {
         remote.searchResponses["Arrival"] = RemoteResult.Success(listOf(movieDto(1, "Arrival")))
-        searchRepository.refresh(query("Arrival"))
+        searchRepository.refresh(search("Arrival"))
         remote.detailResponses[1] = RemoteResult.Success(details)
         repository.refreshDetails(1)
 
-        searchRepository.refresh(query("Arrival"))
+        searchRepository.refresh(search("Arrival"))
 
         assertEquals(116, repository.observeMovie(1).first()?.extras?.runtimeMinutes)
     }

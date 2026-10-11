@@ -18,11 +18,12 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.canolabs.movieshelf.domain.model.ResultsRequest
 import com.canolabs.movieshelf.domain.model.SearchQuery
 import com.canolabs.movieshelf.presentation.components.LocalSharedTransitionScope
 import com.canolabs.movieshelf.presentation.detail.MovieDetailRoute
 import com.canolabs.movieshelf.presentation.results.ResultsRoute
-import com.canolabs.movieshelf.presentation.search.SearchScreen
+import com.canolabs.movieshelf.presentation.search.SearchRoute
 import com.canolabs.movieshelf.presentation.searchentry.SearchEntryRoute
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -54,7 +55,11 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                 predictivePopTransitionSpec = { fadeThrough() },
                 entryProvider = entryProvider {
                     entry<SearchDestination> {
-                        SearchScreen(onSearchClick = { backStack.add(SearchEntryDestination()) })
+                        SearchRoute(
+                            settingsViewModel = koinViewModel(),
+                            onSearchClick = { backStack.add(SearchEntryDestination()) },
+                            onDiscoverClick = { backStack.showDiscover() },
+                        )
                     }
                     entry<SearchEntryDestination> { key ->
                         SearchEntryRoute(
@@ -66,7 +71,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
                     }
                     entry<ResultsDestination> { key ->
                         ResultsRoute(
-                            viewModel = koinViewModel { parametersOf(key.query) },
+                            viewModel = koinViewModel { parametersOf(key.toRequest()) },
                             onBack = { backStack.removeLastOrNull() },
                             onOpenMovie = { movieId, posterUrl -> backStack.add(MovieDetailDestination(movieId, posterUrl)) },
                             onOpenSearchEntry = { query -> backStack.add(SearchEntryDestination(query)) },
@@ -98,6 +103,18 @@ internal fun MutableList<NavKey>.showResults(
     if (lastOrNull() is ResultsDestination) removeAt(lastIndex)
     add(ResultsDestination(query.text, newSubmissionId()))
 }
+
+/** Opens Discover as a new Results submission on top of Search. */
+internal fun MutableList<NavKey>.showDiscover(
+    newSubmissionId: () -> String = { UUID.randomUUID().toString() },
+) {
+    add(ResultsDestination(query = null, submissionId = newSubmissionId()))
+}
+
+/** The request a Results entry stands for: its typed query, or Discover when it has none. */
+internal fun ResultsDestination.toRequest(): ResultsRequest =
+    query?.let { ResultsRequest.Search(requireNotNull(SearchQuery.from(it)) { "Results opened for a blank query" }) }
+        ?: ResultsRequest.Discover
 
 /** Material fade-through with a soft spring scale; shared elements carry the spatial motion. */
 private fun fadeThrough(): ContentTransform {

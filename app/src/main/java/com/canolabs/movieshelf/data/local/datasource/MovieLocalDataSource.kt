@@ -36,9 +36,13 @@ interface MovieLocalDataSource {
 
     suspend fun recordSearch(queryKey: String, displayQuery: String, searchedAt: Long)
 
+    /** Hides [queryKey] from recent searches, keeping its cached results and the saved movies. */
+    suspend fun removeFromHistory(queryKey: String)
+
     /**
      * Atomically replaces [queryKey]'s result set with TMDB page 1 (possibly empty) and resets its
-     * pagination to one loaded page of [totalPages].
+     * pagination to one loaded page of [totalPages]. [inHistory] applies only if the query row has to
+     * be created here (typed searches are normally recorded before their request).
      */
     suspend fun replaceSearchResults(
         queryKey: String,
@@ -46,6 +50,7 @@ interface MovieLocalDataSource {
         movies: List<MovieEntity>,
         refreshedAt: Long,
         totalPages: Int,
+        inHistory: Boolean = true,
     )
 
     /** Pagination of [queryKey], or `null` if the query was never recorded. */
@@ -98,17 +103,24 @@ class MovieLocalDataSourceImpl(
         searchDao.recordSearch(queryKey, displayQuery, searchedAt)
     }
 
+    override suspend fun removeFromHistory(queryKey: String) {
+        searchDao.removeFromHistory(queryKey)
+    }
+
     override suspend fun replaceSearchResults(
         queryKey: String,
         displayQuery: String,
         movies: List<MovieEntity>,
         refreshedAt: Long,
         totalPages: Int,
+        inHistory: Boolean,
     ) {
         database.withTransaction {
             // The query row normally exists already (recorded on submit). Only create it when missing,
             // without touching its recency, so a late response never reorders recent searches.
-            searchDao.insertIfAbsent(SearchQueryEntity(queryKey, displayQuery, refreshedAt, lastRefreshedAt = null))
+            searchDao.insertIfAbsent(
+                SearchQueryEntity(queryKey, displayQuery, refreshedAt, lastRefreshedAt = null, inHistory = inHistory),
+            )
             movieDao.upsertSummaries(movies)
             searchDao.replaceResults(
                 queryKey = queryKey,

@@ -7,7 +7,7 @@ package com.canolabs.movieshelf.domain.model
  * fetched successfully, which distinguishes a cache miss from a cached, genuinely empty result.
  */
 data class CachedSearch(
-    val query: SearchQuery,
+    val request: ResultsRequest,
     val movies: List<Movie>,
     val lastRefreshedAt: Long?,
     /** TMDB pages stored for the query. */
