@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -40,7 +42,7 @@ import java.util.UUID
 fun AppNavigation(modifier: Modifier = Modifier) {
     val backStack = rememberNavBackStack(HomeDestination)
 
-    SharedTransitionLayout(modifier = modifier) {
+    SharedTransitionLayout(modifier = modifier.background(MaterialTheme.colorScheme.background)) {
         CompositionLocalProvider(LocalSharedTransitionScope provides this) {
             NavDisplay(
                 backStack = backStack,
