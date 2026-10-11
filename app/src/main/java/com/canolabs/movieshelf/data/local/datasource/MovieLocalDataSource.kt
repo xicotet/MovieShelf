@@ -17,10 +17,13 @@ import kotlinx.coroutines.flow.map
 internal fun escapeLikePattern(text: String): String =
     text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
-/** Persisted state of one query: `null` when the query has never been recorded. */
+/**
+ * Persisted state of one query; observed as `null` when the query has never been recorded.
+ *
+ * @property movies Ordered by result position.
+ */
 data class CachedQueryResults(
     val lastRefreshedAt: Long?,
-    /** Ordered by result position. */
     val movies: List<MovieEntity>,
     val loadedPages: Int = 0,
     val totalPages: Int? = null,

@@ -7,22 +7,31 @@ import com.canolabs.movieshelf.domain.model.Movie
 
 /**
  * Refresh lifecycle owned by the ViewModel, independent of the cached content it updates.
+ *
+ * Transitions:
+ * - [started]: a request is running; a previous failure is kept so retries do not hide it.
+ * - [succeeded]: everything is cleared.
+ * - [failed]: records the failure.
+ * - [cancelled]: not a failure; the previous failure (if any) is kept and nothing new is recorded.
+ * - [noLoadNeeded]: the destination decided not to request (e.g. a completed cached result exists).
+ * - [skippedBecauseOffline]: the submission was not sent because the device was offline.
+ *
+ * @property isRunning A request for the query is running.
+ * @property lastFailure Most recent failure; survives retries and is cleared only by a success.
+ * @property isAwaitingLoad The destination has not decided yet whether to request; a request is
+ *   expected imminently.
+ * @property skippedOffline The submission was not sent because the device was offline. Kept while a
+ *   retry runs.
  */
 internal data class RefreshState(
-    /** A request for the query is running. */
     val isRunning: Boolean = false,
-    /** Most recent failure; survives retries and is cleared only by a successful refresh. */
     val lastFailure: DataError? = null,
-    /** The destination has not decided yet whether to request; a request is expected imminently. */
     val isAwaitingLoad: Boolean = true,
-    /** The submission was not sent because the device was offline. Kept while a retry runs. */
     val skippedOffline: Boolean = false,
 ) {
     fun started() = copy(isRunning = true, isAwaitingLoad = false)
     fun succeeded() = RefreshState(isRunning = false, lastFailure = null, isAwaitingLoad = false, skippedOffline = false)
     fun failed(error: DataError) = copy(isRunning = false, lastFailure = error, isAwaitingLoad = false, skippedOffline = false)
-
-    /** Cancellation is not a failure: the previous failure (if any) is kept, nothing new is recorded. */
     fun cancelled() = copy(isRunning = false, isAwaitingLoad = false)
     fun noLoadNeeded() = copy(isAwaitingLoad = false)
     fun skippedBecauseOffline() = copy(isRunning = false, isAwaitingLoad = false, skippedOffline = true)

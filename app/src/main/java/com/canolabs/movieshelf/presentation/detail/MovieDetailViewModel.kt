@@ -18,16 +18,24 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/**
+ * Everything the Detail screen renders.
+ *
+ * [extrasUnavailable] is true when runtime, genres and tagline have never been fetched and cannot be
+ * shown right now. [isMissing] is true when the movie is not cached and nothing is being fetched.
+ *
+ * @property isLoading `true` until the local cache has been read once.
+ * @property details Locally cached information; `null` if the movie is not cached.
+ * @property isRefreshing A request for the full details is running.
+ * @property refreshError Why the last request for the full details failed, if it did.
+ */
 data class MovieDetailUiState(
     val movieId: Long,
-    /** `true` until the local cache has been read once. */
     val isLoading: Boolean = true,
-    /** Locally cached information; `null` if the movie is not cached. */
     val details: MovieDetails? = null,
     val isRefreshing: Boolean = false,
     val refreshError: DataError? = null,
 ) {
-    /** Runtime/genres/tagline have never been fetched and cannot be shown right now. */
     val extrasUnavailable: Boolean get() = details != null && details.extras == null && refreshError != null
     val isMissing: Boolean get() = !isLoading && details == null && !isRefreshing
 }

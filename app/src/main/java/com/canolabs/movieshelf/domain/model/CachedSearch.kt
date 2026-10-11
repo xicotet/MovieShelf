@@ -1,23 +1,25 @@
 package com.canolabs.movieshelf.domain.model
 
 /**
- * The locally persisted state of one query's result set.
+ * The locally persisted state of one request's result set.
  *
- * `movies` is ordered as returned by the API. [lastRefreshedAt] is `null` when the query has never been
- * fetched successfully, which distinguishes a cache miss from a cached, genuinely empty result.
+ * [hasCachedResult] tells a cache miss apart from a cached, genuinely empty result. [canLoadMore] is
+ * true when another TMDB page exists according to TMDB's own metadata, never inferred from page size.
+ *
+ * @property movies Ordered as returned by the API.
+ * @property lastRefreshedAt `null` when the request has never been fetched successfully.
+ * @property loadedPages TMDB pages stored for the request.
+ * @property totalPages TMDB's total page count for the request, or `null` when unknown.
  */
 data class CachedSearch(
     val request: ResultsRequest,
     val movies: List<Movie>,
     val lastRefreshedAt: Long?,
-    /** TMDB pages stored for the query. */
     val loadedPages: Int = 0,
-    /** TMDB's total page count for the query, or `null` when unknown. */
     val totalPages: Int? = null,
 ) {
     val hasCachedResult: Boolean get() = lastRefreshedAt != null
 
-    /** Another TMDB page exists according to TMDB's own metadata (never inferred from page size). */
     val canLoadMore: Boolean
         get() = hasCachedResult && loadedPages >= 1 && totalPages != null && loadedPages < totalPages
 }

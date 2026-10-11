@@ -27,6 +27,8 @@ private const val COLUMN_UPDATED_AT = "updated_at"
  *
  * Summary columns are refreshed by every search; the detail columns ([runtimeMinutes], [tagline],
  * [genres]) are only written by the detail endpoint and are marked by [detailsFetchedAt].
+ *
+ * @property genres Genre names separated by [GENRE_SEPARATOR].
  */
 @Entity(tableName = TABLE_MOVIES)
 data class MovieEntity(
@@ -41,7 +43,6 @@ data class MovieEntity(
     @ColumnInfo(name = COLUMN_VOTE_COUNT) val voteCount: Int?,
     @ColumnInfo(name = COLUMN_RUNTIME_MINUTES) val runtimeMinutes: Int? = null,
     @ColumnInfo(name = COLUMN_TAGLINE) val tagline: String? = null,
-    /** Genre names separated by [GENRE_SEPARATOR]. */
     @ColumnInfo(name = COLUMN_GENRES) val genres: String? = null,
     @ColumnInfo(name = COLUMN_DETAILS_FETCHED_AT) val detailsFetchedAt: Long? = null,
     @ColumnInfo(name = COLUMN_UPDATED_AT) val updatedAt: Long,
