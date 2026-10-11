@@ -49,7 +49,7 @@ class MovieTitleSearchDaoTest {
 
     private suspend fun cache(queryKey: String, vararg movies: MovieEntity) {
         local.recordSearch(queryKey, queryKey, searchedAt = 1L)
-        local.replaceSearchResults(queryKey, queryKey, movies.toList(), refreshedAt = 2L)
+        local.replaceSearchResults(queryKey, queryKey, movies.toList(), refreshedAt = 2L, totalPages = 1)
     }
 
     @Test

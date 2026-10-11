@@ -12,9 +12,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -115,7 +115,7 @@ class SearchRepositoryImplTest {
     }
 
     @Test
-    fun `movies shared by several queries survive replacing one of them`() = runTest {
+    fun `replacing a query's results keeps every movie in the local catalogue`() = runTest {
         remote.searchResponses["Batman"] = RemoteResult.Success(listOf(movieDto(1), movieDto(2)))
         remote.searchResponses["Dark Knight"] = RemoteResult.Success(listOf(movieDto(2)))
         repository.refresh(query("Batman"))
@@ -125,7 +125,9 @@ class SearchRepositoryImplTest {
         repository.refresh(query("Batman"))
 
         assertEquals(listOf(2L), repository.observeResults(query("Dark Knight")).first().movies.map { it.id })
-        assertNull(local.movie(1))
+        assertTrue(repository.observeResults(query("Batman")).first().movies.isEmpty())
+        // No longer referenced by any query, but still saved for offline title search.
+        assertNotNull(local.movie(1))
     }
 
     @Test
@@ -231,4 +233,170 @@ class SearchRepositoryImplTest {
         assertFalse(repository.observeResults(query("Heat")).first().hasCachedResult)
         assertTrue(remote.searchCalls.isEmpty())
     }
+
+    // region Pagination
+
+    private fun pageOf(range: IntRange) = range.map { movieDto(it.toLong()) }
+
+    @Test
+    fun `page 1 stores tmdb's pagination metadata`() = runTest {
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(1..3))
+        remote.totalPages["Alien"] = 4
+
+        repository.refresh(query("Alien"))
+
+        val cached = repository.observeResults(query("Alien")).first()
+        assertEquals(1, cached.loadedPages)
+        assertEquals(4, cached.totalPages)
+        assertTrue(cached.canLoadMore)
+    }
+
+    @Test
+    fun `next page is appended in order, deduplicated and persisted with its metadata`() = runTest {
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(1..3))
+        remote.totalPages["Alien"] = 3
+        remote.pageResponses["Alien" to 2] = RemoteResult.Success(listOf(movieDto(3), movieDto(4), movieDto(5), movieDto(4)))
+        repository.refresh(query("Alien"))
+
+        val result = repository.loadNextPage(query("Alien"))
+
+        assertEquals(RefreshResult.Success, result)
+        assertEquals(listOf("Alien" to 1, "Alien" to 2), remote.pageCalls)
+        assertEquals("appendSearchResultsPage:alien:2:applied", local.writes.last())
+        val cached = repository.observeResults(query("Alien")).first()
+        assertEquals(listOf(1L, 2L, 3L, 4L, 5L), cached.movies.map { it.id })
+        assertEquals(2, cached.loadedPages)
+        assertEquals(3, cached.totalPages)
+    }
+
+    @Test
+    fun `no request is made when tmdb reports no further page`() = runTest {
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(1..3))
+        remote.totalPages["Alien"] = 1
+        repository.refresh(query("Alien"))
+
+        val result = repository.loadNextPage(query("Alien"))
+
+        assertEquals(RefreshResult.Success, result)
+        assertEquals(listOf("Alien" to 1), remote.pageCalls)
+        assertFalse(repository.observeResults(query("Alien")).first().canLoadMore)
+    }
+
+    @Test
+    fun `twenty results do not imply another page`() = runTest {
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(1..20))
+        remote.totalPages["Alien"] = 1
+
+        repository.refresh(query("Alien"))
+
+        assertFalse(repository.observeResults(query("Alien")).first().canLoadMore)
+    }
+
+    @Test
+    fun `a failed next page keeps every loaded page`() = runTest {
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(1..3))
+        remote.totalPages["Alien"] = 3
+        repository.refresh(query("Alien"))
+        val before = repository.observeResults(query("Alien")).first()
+
+        val result = repository.loadNextPage(query("Alien"))
+
+        assertEquals(RefreshResult.Failure(DataError.Network), result)
+        assertEquals(before, repository.observeResults(query("Alien")).first())
+    }
+
+    @Test
+    fun `refreshing page 1 resets pagination and drops later pages`() = runTest {
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(1..2))
+        remote.totalPages["Alien"] = 5
+        remote.pageResponses["Alien" to 2] = RemoteResult.Success(pageOf(3..4))
+        repository.refresh(query("Alien"))
+        repository.loadNextPage(query("Alien"))
+
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(7..8))
+        remote.totalPages["Alien"] = 2
+        repository.refresh(query("Alien"))
+
+        val cached = repository.observeResults(query("Alien")).first()
+        assertEquals(listOf(7L, 8L), cached.movies.map { it.id })
+        assertEquals(1, cached.loadedPages)
+        assertEquals(2, cached.totalPages)
+    }
+
+    @Test
+    fun `a late page response after a page 1 refresh cannot corrupt the results`() = runTest {
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(1..2))
+        remote.totalPages["Alien"] = 5
+        repository.refresh(query("Alien"))
+        repository.loadNextPage(query("Alien").also { remote.pageResponses["Alien" to 2] = RemoteResult.Success(pageOf(3..4)) })
+        // Page 3 is requested, and while it is in flight page 1 is refreshed.
+        val gate = CompletableDeferred<Unit>()
+        remote.pageResponses["Alien" to 3] = RemoteResult.Success(pageOf(5..6))
+        remote.beforeSearchResponse = { gate.await() }
+        val latePage = async { repository.loadNextPage(query("Alien")) }
+        runCurrent()
+        remote.beforeSearchResponse = {}
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(9..10))
+        repository.refresh(query("Alien"))
+        gate.complete(Unit)
+        latePage.await()
+
+        val cached = repository.observeResults(query("Alien")).first()
+        assertEquals(listOf(9L, 10L), cached.movies.map { it.id })
+        assertEquals(1, cached.loadedPages)
+        assertEquals("appendSearchResultsPage:alien:3:rejected", local.writes.last())
+        // The late page's movies still joined the catalogue.
+        assertNotNull(local.movie(5))
+    }
+
+    @Test
+    fun `a page for one query never touches another query`() = runTest {
+        remote.searchResponses["Alien"] = RemoteResult.Success(pageOf(1..2))
+        remote.totalPages["Alien"] = 2
+        remote.pageResponses["Alien" to 2] = RemoteResult.Success(pageOf(3..4))
+        remote.searchResponses["Heat"] = RemoteResult.Success(pageOf(10..11))
+        repository.refresh(query("Alien"))
+        repository.refresh(query("Heat"))
+
+        repository.loadNextPage(query("Alien"))
+
+        assertEquals(listOf(10L, 11L), repository.observeResults(query("Heat")).first().movies.map { it.id })
+        assertEquals(1, repository.observeResults(query("Heat")).first().loadedPages)
+    }
+
+    @Test
+    fun `local title search finds movies saved by other queries and later pages`() = runTest {
+        remote.searchResponses["Alien"] = RemoteResult.Success(listOf(movieDto(1, "Alien")))
+        remote.totalPages["Alien"] = 2
+        remote.pageResponses["Alien" to 2] = RemoteResult.Success(listOf(movieDto(2, "Alien: Romulus")))
+        remote.searchResponses["Ridley"] = RemoteResult.Success(listOf(movieDto(3, "Alien Covenant")))
+        repository.refresh(query("Alien"))
+        repository.loadNextPage(query("Alien"))
+        repository.refresh(query("Ridley"))
+        // Alien's page-1 refresh no longer contains the page-2 movie.
+        remote.searchResponses["Alien"] = RemoteResult.Success(listOf(movieDto(1, "Alien")))
+        repository.refresh(query("Alien"))
+
+        val matches = repository.observeLocalTitleMatches(query("alien"), limit = 10).first().map { it.id }.toSet()
+
+        assertEquals(setOf(1L, 2L, 3L), matches)
+        // Local matching never wrote anything to an unsearched query's results.
+        assertFalse(repository.observeResults(query("ali")).first().hasCachedResult)
+    }
+
+    @Test
+    fun `a cached empty result stays distinct from a cache miss`() = runTest {
+        remote.searchResponses["Nothing"] = RemoteResult.Success(emptyList())
+        remote.totalPages["Nothing"] = 0
+        repository.refresh(query("Nothing"))
+
+        val cachedEmpty = repository.observeResults(query("Nothing")).first()
+        val miss = repository.observeResults(query("Never searched")).first()
+
+        assertTrue(cachedEmpty.hasCachedResult)
+        assertFalse(cachedEmpty.canLoadMore)
+        assertFalse(miss.hasCachedResult)
+    }
+
+    // endregion
 }

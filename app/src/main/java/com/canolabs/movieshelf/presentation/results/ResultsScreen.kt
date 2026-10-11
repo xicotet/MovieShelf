@@ -75,6 +75,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -93,6 +94,8 @@ import com.canolabs.movieshelf.presentation.results.ResultsContract.UiAction
 import com.canolabs.movieshelf.presentation.results.ResultsContract.UiIntent
 import com.canolabs.movieshelf.presentation.results.ResultsContract.UiState
 import com.canolabs.movieshelf.presentation.results.components.MovieCard
+import com.canolabs.movieshelf.presentation.results.ResultsContract.LoadMoreFailure
+import com.canolabs.movieshelf.presentation.results.ResultsContract.NextPage
 import com.canolabs.movieshelf.presentation.results.ResultsContract.Notice
 import com.canolabs.movieshelf.presentation.results.components.ResultsNoticeBanner
 import com.canolabs.movieshelf.ui.theme.AppTheme
@@ -195,6 +198,7 @@ fun ResultsScreen(
                                 movies = content.movies,
                                 header = pluralStringResource(R.plurals.results_count, content.movies.size, content.movies.size),
                                 onIntent = onIntent,
+                                nextPage = state.nextPage,
                             )
                             is Content.LocalMatches -> MoviesGrid(
                                 movies = content.movies,
@@ -309,7 +313,12 @@ private fun RetryButton(isRetrying: Boolean, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun MoviesGrid(movies: List<Movie>, header: String, onIntent: (UiIntent) -> Unit) {
+private fun MoviesGrid(
+    movies: List<Movie>,
+    header: String,
+    onIntent: (UiIntent) -> Unit,
+    nextPage: NextPage = NextPage.Unavailable,
+) {
     LazyVerticalGrid(
         columns = gridColumns,
         contentPadding = gridPadding(),
@@ -332,6 +341,56 @@ private fun MoviesGrid(movies: List<Movie>, header: String, onIntent: (UiIntent)
                 modifier = Modifier.animateItem(),
             )
         }
+        if (nextPage != NextPage.Unavailable) {
+            item(key = "load-more", span = { GridItemSpan(maxLineSpan) }) {
+                LoadMoreFooter(nextPage = nextPage, onLoadMore = { onIntent(UiIntent.LoadMore) })
+            }
+        }
+    }
+}
+
+/** End-of-list control for the next TMDB page; its loading and errors never replace loaded results. */
+@Composable
+private fun LoadMoreFooter(nextPage: NextPage, onLoadMore: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+    ) {
+        when (nextPage) {
+            NextPage.Loading -> {
+                CircularProgressIndicator(strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.load_more_loading),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            is NextPage.Failed -> {
+                Text(
+                    text = stringResource(nextPage.reason.messageRes()),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                Spacer(Modifier.height(8.dp))
+                FilledTonalButton(onClick = onLoadMore) { Text(stringResource(R.string.action_retry)) }
+            }
+            NextPage.Available -> OutlinedButton(onClick = onLoadMore) { Text(stringResource(R.string.load_more)) }
+            NextPage.Unavailable -> Unit
+        }
+    }
+}
+
+private fun LoadMoreFailure.messageRes(): Int = when (this) {
+    LoadMoreFailure.Offline -> R.string.load_more_offline
+    is LoadMoreFailure.Error -> when (error) {
+        DataError.Network -> R.string.load_more_unreachable
+        DataError.Timeout -> R.string.load_more_timeout
+        else -> R.string.load_more_failed
     }
 }
 

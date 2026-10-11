@@ -1,0 +1,217 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "6451bfff2356eef8d1ba1d987b2e6c7b",
+    "entities": [
+      {
+        "tableName": "movies",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `title` TEXT NOT NULL, `overview` TEXT, `release_date` TEXT, `poster_path` TEXT, `backdrop_path` TEXT, `vote_average` REAL, `vote_count` INTEGER, `runtime_minutes` INTEGER, `tagline` TEXT, `genres` TEXT, `details_fetched_at` INTEGER, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "overview",
+            "columnName": "overview",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "releaseDate",
+            "columnName": "release_date",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "posterPath",
+            "columnName": "poster_path",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "backdropPath",
+            "columnName": "backdrop_path",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "voteAverage",
+            "columnName": "vote_average",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "voteCount",
+            "columnName": "vote_count",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "runtimeMinutes",
+            "columnName": "runtime_minutes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "tagline",
+            "columnName": "tagline",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "genres",
+            "columnName": "genres",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "detailsFetchedAt",
+            "columnName": "details_fetched_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "search_queries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`query_key` TEXT NOT NULL, `display_query` TEXT NOT NULL, `last_searched_at` INTEGER NOT NULL, `last_refreshed_at` INTEGER, `loaded_pages` INTEGER NOT NULL DEFAULT 0, `total_pages` INTEGER, PRIMARY KEY(`query_key`))",
+        "fields": [
+          {
+            "fieldPath": "queryKey",
+            "columnName": "query_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayQuery",
+            "columnName": "display_query",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSearchedAt",
+            "columnName": "last_searched_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRefreshedAt",
+            "columnName": "last_refreshed_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "loadedPages",
+            "columnName": "loaded_pages",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "totalPages",
+            "columnName": "total_pages",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "query_key"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_search_queries_last_searched_at",
+            "unique": false,
+            "columnNames": [
+              "last_searched_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_search_queries_last_searched_at` ON `${TABLE_NAME}` (`last_searched_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "search_results",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`query_key` TEXT NOT NULL, `movie_id` INTEGER NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`query_key`, `movie_id`), FOREIGN KEY(`query_key`) REFERENCES `search_queries`(`query_key`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`movie_id`) REFERENCES `movies`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "queryKey",
+            "columnName": "query_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "movieId",
+            "columnName": "movie_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "query_key",
+            "movie_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_search_results_movie_id",
+            "unique": false,
+            "columnNames": [
+              "movie_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_search_results_movie_id` ON `${TABLE_NAME}` (`movie_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "search_queries",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "query_key"
+            ],
+            "referencedColumns": [
+              "query_key"
+            ]
+          },
+          {
+            "table": "movies",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "movie_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6451bfff2356eef8d1ba1d987b2e6c7b')"
+    ]
+  }
+}

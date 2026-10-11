@@ -4,6 +4,7 @@ import android.net.ConnectivityManager
 import androidx.room.Room
 import com.canolabs.movieshelf.data.connectivity.AndroidNetworkStatusSource
 import com.canolabs.movieshelf.data.connectivity.SharedConnectivityMonitor
+import com.canolabs.movieshelf.data.local.database.MIGRATION_1_2
 import com.canolabs.movieshelf.data.local.database.MovieShelfDatabase
 import com.canolabs.movieshelf.data.local.datasource.MovieLocalDataSource
 import com.canolabs.movieshelf.data.local.datasource.MovieLocalDataSourceImpl
@@ -23,6 +24,7 @@ import org.koin.dsl.module
 val dataModule = module {
     single {
         Room.databaseBuilder(androidContext(), MovieShelfDatabase::class.java, MovieShelfDatabase.NAME)
+            .addMigrations(MIGRATION_1_2)
             .build()
     }
     single { get<MovieShelfDatabase>().searchDao() }

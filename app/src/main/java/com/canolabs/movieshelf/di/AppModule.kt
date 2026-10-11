@@ -14,6 +14,7 @@ val appModule = module {
             savedStateHandle = get(),
             observeSearchResults = get(),
             refreshSearchResults = get(),
+            loadNextResultsPage = get(),
             observeLocalTitleMatches = get(),
             recordSearch = get(),
             observeConnectivity = get(),

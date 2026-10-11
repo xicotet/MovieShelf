@@ -49,6 +49,10 @@ android {
         compose = true
         buildConfig = true
     }
+    sourceSets {
+        // Exported Room schemas, used by MigrationTestHelper in instrumented tests.
+        getByName("androidTest").assets.directories.add("$projectDir/schemas")
+    }
     testOptions {
         // android.util.Log calls are no-ops in JVM unit tests instead of throwing "not mocked".
         unitTests.isReturnDefaultValues = true
@@ -102,6 +106,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.androidx.room.testing)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

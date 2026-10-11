@@ -3,7 +3,7 @@ package com.canolabs.movieshelf.data.remote.datasource
 import android.util.Log
 import com.canolabs.movieshelf.data.remote.api.TmdbApiService
 import com.canolabs.movieshelf.data.remote.dto.MovieDetailsDto
-import com.canolabs.movieshelf.data.remote.dto.MovieDto
+import com.canolabs.movieshelf.data.remote.dto.SearchMoviesResponseDto
 import com.canolabs.movieshelf.domain.model.DataError
 import io.ktor.client.call.NoTransformationFoundException
 import io.ktor.client.network.sockets.ConnectTimeoutException
@@ -18,7 +18,8 @@ import java.net.SocketTimeoutException
 import kotlin.time.TimeSource
 
 interface MovieRemoteDataSource {
-    suspend fun searchMovies(query: String): RemoteResult<List<MovieDto>>
+    /** One TMDB result page, including TMDB's pagination metadata. */
+    suspend fun searchMovies(query: String, page: Int = 1): RemoteResult<SearchMoviesResponseDto>
     suspend fun movieDetails(movieId: Long): RemoteResult<MovieDetailsDto>
 }
 
@@ -26,8 +27,11 @@ class MovieRemoteDataSourceImpl(
     private val api: TmdbApiService,
 ) : MovieRemoteDataSource {
 
-    override suspend fun searchMovies(query: String): RemoteResult<List<MovieDto>> =
-        safeCall("search/movie \"$query\"", describe = { "${it.size} results" }) { api.searchMovies(query).results }
+    override suspend fun searchMovies(query: String, page: Int): RemoteResult<SearchMoviesResponseDto> =
+        safeCall(
+            "search/movie \"$query\" page $page",
+            describe = { "${it.results.size} results, page ${it.page} of ${it.totalPages}" },
+        ) { api.searchMovies(query, page) }
 
     override suspend fun movieDetails(movieId: Long): RemoteResult<MovieDetailsDto> =
         safeCall("movie/$movieId", describe = { "\"${it.title}\"" }) { api.movieDetails(movieId) }

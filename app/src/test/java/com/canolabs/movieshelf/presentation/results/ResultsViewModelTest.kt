@@ -5,12 +5,15 @@ import com.canolabs.movieshelf.domain.model.ConnectivityStatus
 import com.canolabs.movieshelf.domain.model.DataError
 import com.canolabs.movieshelf.domain.model.RefreshResult
 import com.canolabs.movieshelf.domain.usecase.GetConnectivityStatusUseCaseImpl
+import com.canolabs.movieshelf.domain.usecase.LoadNextResultsPageUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.ObserveConnectivityUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.ObserveLocalTitleMatchesUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.ObserveSearchResultsUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.RecordSearchUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.RefreshSearchResultsUseCaseImpl
 import com.canolabs.movieshelf.presentation.results.ResultsContract.Content
+import com.canolabs.movieshelf.presentation.results.ResultsContract.LoadMoreFailure
+import com.canolabs.movieshelf.presentation.results.ResultsContract.NextPage
 import com.canolabs.movieshelf.presentation.results.ResultsContract.Notice
 import com.canolabs.movieshelf.presentation.results.ResultsContract.UiAction
 import com.canolabs.movieshelf.presentation.results.ResultsContract.UiIntent
@@ -50,6 +53,7 @@ class ResultsViewModelTest {
         savedStateHandle = savedStateHandle,
         observeSearchResults = ObserveSearchResultsUseCaseImpl(repository),
         refreshSearchResults = RefreshSearchResultsUseCaseImpl(repository),
+        loadNextResultsPage = LoadNextResultsPageUseCaseImpl(repository),
         observeLocalTitleMatches = ObserveLocalTitleMatchesUseCaseImpl(repository),
         recordSearch = RecordSearchUseCaseImpl(repository),
         observeConnectivity = ObserveConnectivityUseCaseImpl(connectivity),
@@ -587,6 +591,133 @@ class ResultsViewModelTest {
         subscribe(viewModel)
 
         assertEquals(Content.Error(DataError.Server), viewModel.uiState.value.content)
+    }
+
+    // endregion
+
+    // region Load more
+
+    /** Cached page 1 of [total] pages; the initial refresh keeps it unchanged. */
+    private fun cachedFirstPage(total: Int = 2) {
+        repository.setCached(query("Batman"), listOf(movie(1)), loadedPages = 1, totalPages = total)
+        repository.onRefresh = { RefreshResult.Success }
+    }
+
+    @Test
+    fun `load more appends the next page while the loaded results stay visible`() = runTest {
+        cachedFirstPage()
+        val response = CompletableDeferred<Unit>()
+        repository.onLoadNextPage = { q ->
+            response.await()
+            repository.setCached(q, listOf(movie(1), movie(2)), loadedPages = 2, totalPages = 2)
+            RefreshResult.Success
+        }
+        val viewModel = createViewModel()
+        subscribe(viewModel)
+        assertEquals(NextPage.Available, viewModel.uiState.value.nextPage)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+
+        val loading = viewModel.uiState.value
+        assertEquals(Content.Movies(listOf(movie(1))), loading.content)
+        assertEquals(NextPage.Loading, loading.nextPage)
+        assertFalse(loading.isRefreshing)
+
+        response.complete(Unit)
+        val done = viewModel.uiState.value
+        assertEquals(Content.Movies(listOf(movie(1), movie(2))), done.content)
+        assertEquals(NextPage.Unavailable, done.nextPage)
+    }
+
+    @Test
+    fun `repeated load more taps request the next page only once`() = runTest {
+        cachedFirstPage()
+        val response = CompletableDeferred<RefreshResult>()
+        repository.onLoadNextPage = { response.await() }
+        val viewModel = createViewModel()
+        subscribe(viewModel)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+        viewModel.onIntent(UiIntent.LoadMore)
+
+        assertEquals(1, repository.nextPageCalls.size)
+    }
+
+    @Test
+    fun `load more is ignored while a page 1 refresh is running`() = runTest {
+        repository.setCached(query("Batman"), listOf(movie(1)), loadedPages = 1, totalPages = 2)
+        val refresh = CompletableDeferred<RefreshResult>()
+        repository.onRefresh = { refresh.await() }
+        val viewModel = createViewModel()
+        subscribe(viewModel)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+
+        assertTrue(repository.nextPageCalls.isEmpty())
+    }
+
+    @Test
+    fun `a failed next page keeps the loaded results and can be retried`() = runTest {
+        cachedFirstPage()
+        repository.onLoadNextPage = { RefreshResult.Failure(DataError.Network) }
+        val viewModel = createViewModel()
+        subscribe(viewModel)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+
+        val failed = viewModel.uiState.value
+        assertEquals(Content.Movies(listOf(movie(1))), failed.content)
+        assertEquals(NextPage.Failed(LoadMoreFailure.Error(DataError.Network)), failed.nextPage)
+        assertNull(failed.notice)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+        assertEquals(2, repository.nextPageCalls.size)
+    }
+
+    @Test
+    fun `load more while offline sends nothing, keeps the results and offers a retry`() = runTest {
+        repository.setCached(query("Batman"), listOf(movie(1)), loadedPages = 1, totalPages = 2)
+        connectivity.emit(ConnectivityStatus.Unavailable)
+        val viewModel = createViewModel()
+        subscribe(viewModel)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+
+        val offline = viewModel.uiState.value
+        assertTrue(repository.nextPageCalls.isEmpty())
+        assertEquals(Content.Movies(listOf(movie(1))), offline.content)
+        assertEquals(NextPage.Failed(LoadMoreFailure.Offline), offline.nextPage)
+
+        // Back online: the retry goes through.
+        connectivity.emit(ConnectivityStatus.Validated)
+        viewModel.onIntent(UiIntent.LoadMore)
+        assertEquals(1, repository.nextPageCalls.size)
+    }
+
+    @Test
+    fun `no load more is offered or requested once every page is loaded`() = runTest {
+        cachedFirstPage(total = 1)
+        val viewModel = createViewModel()
+        subscribe(viewModel)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+
+        assertEquals(NextPage.Unavailable, viewModel.uiState.value.nextPage)
+        assertTrue(repository.nextPageCalls.isEmpty())
+    }
+
+    @Test
+    fun `saved title matches never offer load more`() = runTest {
+        repository.setLocalMatches(query("Batman"), listOf(movie(2)))
+        connectivity.emit(ConnectivityStatus.Unavailable)
+        val viewModel = createViewModel()
+        subscribe(viewModel)
+
+        viewModel.onIntent(UiIntent.LoadMore)
+
+        assertEquals(Content.LocalMatches(listOf(movie(2))), viewModel.uiState.value.content)
+        assertEquals(NextPage.Unavailable, viewModel.uiState.value.nextPage)
+        assertTrue(repository.nextPageCalls.isEmpty())
     }
 
     // endregion

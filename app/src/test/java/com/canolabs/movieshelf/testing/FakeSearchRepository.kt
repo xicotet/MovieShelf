@@ -36,9 +36,23 @@ class FakeSearchRepository : SearchRepository {
         RefreshResult.Success
     }
 
-    fun setCached(query: SearchQuery, movies: List<Movie>, refreshedAt: Long = 1L) {
-        cache.update { it + (query.key to CachedSearch(query, movies, refreshedAt)) }
+    fun setCached(
+        query: SearchQuery,
+        movies: List<Movie>,
+        refreshedAt: Long = 1L,
+        loadedPages: Int = 1,
+        totalPages: Int? = 1,
+    ) {
+        cache.update { it + (query.key to CachedSearch(query, movies, refreshedAt, loadedPages, totalPages)) }
     }
+
+    /** Current cached snapshot, for scripting next-page responses. */
+    fun cached(query: SearchQuery): CachedSearch? = cache.value[query.key]
+
+    val nextPageCalls = mutableListOf<SearchQuery>()
+
+    /** Default: append nothing and succeed. Tests replace it to script outcomes. */
+    var onLoadNextPage: suspend (SearchQuery) -> RefreshResult = { RefreshResult.Success }
 
     fun setRecent(vararg searches: RecentSearch) {
         recent.value = searches.toList()
@@ -51,6 +65,11 @@ class FakeSearchRepository : SearchRepository {
     override suspend fun refresh(query: SearchQuery): RefreshResult {
         refreshCalls += query
         return onRefresh(query)
+    }
+
+    override suspend fun loadNextPage(query: SearchQuery): RefreshResult {
+        nextPageCalls += query
+        return onLoadNextPage(query)
     }
 
     override fun observeRecentSearches(limit: Int): Flow<List<RecentSearch>> = recent.map { it.take(limit) }

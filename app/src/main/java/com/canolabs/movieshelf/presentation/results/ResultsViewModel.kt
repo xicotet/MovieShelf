@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.canolabs.movieshelf.domain.model.RefreshResult
 import com.canolabs.movieshelf.domain.model.SearchQuery
 import com.canolabs.movieshelf.domain.usecase.GetConnectivityStatusUseCase
+import com.canolabs.movieshelf.domain.usecase.LoadNextResultsPageUseCase
 import com.canolabs.movieshelf.domain.usecase.ObserveConnectivityUseCase
 import com.canolabs.movieshelf.domain.usecase.ObserveLocalTitleMatchesUseCase
 import com.canolabs.movieshelf.domain.usecase.ObserveSearchResultsUseCase
@@ -40,6 +41,7 @@ class ResultsViewModel(
     private val savedStateHandle: SavedStateHandle,
     private val observeSearchResults: ObserveSearchResultsUseCase,
     private val refreshSearchResults: RefreshSearchResultsUseCase,
+    private val loadNextResultsPage: LoadNextResultsPageUseCase,
     observeLocalTitleMatches: ObserveLocalTitleMatchesUseCase,
     private val recordSearch: RecordSearchUseCase,
     observeConnectivity: ObserveConnectivityUseCase,
@@ -50,6 +52,7 @@ class ResultsViewModel(
     private val query: SearchQuery = requireNotNull(SearchQuery.from(rawQuery)) { "Results opened for a blank query" }
 
     private val refreshState = MutableStateFlow(RefreshState())
+    private val nextPageState = MutableStateFlow(NextPageState())
 
     /** Safety net against a superseded request writing its outcome; see [refresh]. */
     private var refreshGeneration = 0
@@ -73,9 +76,9 @@ class ResultsViewModel(
             observeSearchResults(query),
             observeLocalTitleMatches(query),
             connectivity,
-            refreshState,
-        ) { cache, localMatches, status, refresh ->
-            reduceResultsState(query.text, cache, localMatches, status, refresh)
+            combine(refreshState, nextPageState, ::Pair),
+        ) { cache, localMatches, status, (refresh, nextPage) ->
+            reduceResultsState(query.text, cache, localMatches, status, refresh, nextPage)
         }.onStart { loadOnce() }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -92,6 +95,7 @@ class ResultsViewModel(
     fun onIntent(intent: UiIntent) {
         when (intent) {
             UiIntent.Retry -> retry()
+            UiIntent.LoadMore -> loadMore()
             is UiIntent.MovieSelected -> actions.trySend(UiAction.OpenMovieDetail(intent.movieId, posterUrlOf(intent.movieId)))
             UiIntent.SearchBarSelected -> actions.trySend(UiAction.OpenSearchEntry(query.text))
         }
@@ -189,6 +193,46 @@ class ResultsViewModel(
             } catch (e: CancellationException) {
                 Log.d(TAG, "\"${query.text}\" refresh #$generation: cancelled")
                 if (generation == refreshGeneration) refreshState.update { it.cancelled() }
+                throw e
+            }
+        }
+    }
+
+    /**
+     * Explicit request for the next TMDB page. Ignored while a next page or a page-1 refresh is
+     * running, or when the shown results have no further page. Offline (fresh platform read), nothing
+     * is sent and a retryable failure is shown under the existing results. A page arriving after a
+     * page-1 refresh is rejected by the repository's transaction, so it can never corrupt the results.
+     */
+    private fun loadMore() {
+        if (nextPageState.value.isLoading || refreshState.value.isRunning) {
+            Log.d(TAG, "\"${query.text}\" load more: ignored, a request is already running")
+            return
+        }
+        if (uiState.value.nextPage !is ResultsContract.NextPage.Available &&
+            uiState.value.nextPage !is ResultsContract.NextPage.Failed
+        ) {
+            Log.d(TAG, "\"${query.text}\" load more: ignored, no further page")
+            return
+        }
+        val status = getConnectivityStatus()
+        if (status.isConfirmedOffline) {
+            Log.d(TAG, "\"${query.text}\" load more: offline ($status), no request sent")
+            nextPageState.value = NextPageState(failure = ResultsContract.LoadMoreFailure.Offline)
+            return
+        }
+        nextPageState.value = NextPageState(isLoading = true)
+        Log.d(TAG, "\"${query.text}\" load more: started")
+        viewModelScope.launch {
+            try {
+                val result = loadNextResultsPage(query)
+                Log.d(TAG, "\"${query.text}\" load more: $result")
+                nextPageState.value = when (result) {
+                    RefreshResult.Success -> NextPageState()
+                    is RefreshResult.Failure -> NextPageState(failure = ResultsContract.LoadMoreFailure.Error(result.error))
+                }
+            } catch (e: CancellationException) {
+                nextPageState.value = NextPageState()
                 throw e
             }
         }

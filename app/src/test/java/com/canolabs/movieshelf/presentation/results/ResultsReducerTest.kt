@@ -161,4 +161,37 @@ class ResultsReducerTest {
 
         assertEquals(Content.Loading, state.content)
     }
+
+    @Test
+    fun `load more follows tmdb pagination and only applies to tmdb results`() {
+        val idle = RefreshState(isAwaitingLoad = false)
+        val morePages = cachedMovies.copy(loadedPages = 1, totalPages = 3)
+        val lastPage = cachedMovies.copy(loadedPages = 3, totalPages = 3)
+
+        assertEquals(ResultsContract.NextPage.Available, reduce(morePages, idle).nextPage)
+        assertEquals(ResultsContract.NextPage.Unavailable, reduce(lastPage, idle).nextPage)
+        assertEquals(ResultsContract.NextPage.Unavailable, reduce(cachedEmpty, idle).nextPage)
+        assertEquals(
+            ResultsContract.NextPage.Unavailable,
+            reduce(miss, RefreshState().skippedBecauseOffline(), ConnectivityStatus.Unavailable, local).nextPage,
+        )
+    }
+
+    @Test
+    fun `next page loading and failures are separate from the refresh state`() {
+        val morePages = cachedMovies.copy(loadedPages = 1, totalPages = 3)
+        val idle = RefreshState(isAwaitingLoad = false)
+
+        val loading = reduceResultsState("Batman", morePages, emptyList(), ConnectivityStatus.Validated, idle, NextPageState(isLoading = true))
+        val failed = reduceResultsState(
+            "Batman", morePages, emptyList(), ConnectivityStatus.Validated, idle,
+            NextPageState(failure = ResultsContract.LoadMoreFailure.Error(DataError.Timeout)),
+        )
+
+        assertEquals(ResultsContract.NextPage.Loading, loading.nextPage)
+        assertFalse(loading.isRefreshing)
+        assertEquals(Content.Movies(listOf(movie(1))), failed.content)
+        assertEquals(ResultsContract.NextPage.Failed(ResultsContract.LoadMoreFailure.Error(DataError.Timeout)), failed.nextPage)
+        assertNull(failed.notice)
+    }
 }

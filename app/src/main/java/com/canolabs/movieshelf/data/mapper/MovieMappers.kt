@@ -75,6 +75,8 @@ fun CachedQueryResults?.toDomain(query: SearchQuery) = CachedSearch(
     query = query,
     movies = this?.movies?.map { it.toDomain() }.orEmpty(),
     lastRefreshedAt = this?.lastRefreshedAt,
+    loadedPages = this?.loadedPages ?: 0,
+    totalPages = this?.totalPages,
 )
 
 /** Returns `null` for rows whose stored text no longer forms a valid query. */

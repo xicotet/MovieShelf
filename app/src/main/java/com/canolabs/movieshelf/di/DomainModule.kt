@@ -2,6 +2,8 @@ package com.canolabs.movieshelf.di
 
 import com.canolabs.movieshelf.domain.usecase.GetConnectivityStatusUseCase
 import com.canolabs.movieshelf.domain.usecase.GetConnectivityStatusUseCaseImpl
+import com.canolabs.movieshelf.domain.usecase.LoadNextResultsPageUseCase
+import com.canolabs.movieshelf.domain.usecase.LoadNextResultsPageUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.ObserveConnectivityUseCase
 import com.canolabs.movieshelf.domain.usecase.ObserveConnectivityUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.ObserveLocalTitleMatchesUseCase
@@ -27,6 +29,7 @@ val domainModule = module {
     factory<ObserveMovieDetailsUseCase> { ObserveMovieDetailsUseCaseImpl(get()) }
     factory<RefreshMovieDetailsUseCase> { RefreshMovieDetailsUseCaseImpl(get()) }
     factory<RecordSearchUseCase> { RecordSearchUseCaseImpl(get()) }
+    factory<LoadNextResultsPageUseCase> { LoadNextResultsPageUseCaseImpl(get()) }
     factory<ObserveLocalTitleMatchesUseCase> { ObserveLocalTitleMatchesUseCaseImpl(get()) }
     factory<ObserveConnectivityUseCase> { ObserveConnectivityUseCaseImpl(get()) }
     factory<GetConnectivityStatusUseCase> { GetConnectivityStatusUseCaseImpl(get()) }

@@ -1,6 +1,7 @@
 package com.canolabs.movieshelf.testing
 
 import com.canolabs.movieshelf.data.local.datasource.CachedQueryResults
+import com.canolabs.movieshelf.data.local.dao.QueryPagination
 import com.canolabs.movieshelf.data.local.datasource.MovieLocalDataSource
 import com.canolabs.movieshelf.data.local.entity.MovieEntity
 import com.canolabs.movieshelf.data.local.entity.SearchQueryEntity
@@ -34,6 +35,8 @@ class FakeMovieLocalDataSource : MovieLocalDataSource {
                 CachedQueryResults(
                     lastRefreshedAt = q.lastRefreshedAt,
                     movies = state.results[queryKey].orEmpty().map { state.movies.getValue(it) },
+                    loadedPages = q.loadedPages,
+                    totalPages = q.totalPages,
                 )
             }
         }
@@ -80,36 +83,68 @@ class FakeMovieLocalDataSource : MovieLocalDataSource {
         displayQuery: String,
         movies: List<MovieEntity>,
         refreshedAt: Long,
+        totalPages: Int,
     ) {
         writes += "replaceSearchResults:$queryKey"
         db.update { state ->
             val query = (state.queries[queryKey] ?: SearchQueryEntity(queryKey, displayQuery, refreshedAt, null))
-                .copy(lastRefreshedAt = refreshedAt)
-            // Keep detail columns of already cached movies, as the DAO's partial update does.
-            val mergedMovies = state.movies + movies.associate { incoming ->
-                val previous = state.movies[incoming.id]
-                incoming.id to (
-                    previous?.copy(
-                        title = incoming.title,
-                        overview = incoming.overview,
-                        releaseDate = incoming.releaseDate,
-                        posterPath = incoming.posterPath,
-                        backdropPath = incoming.backdropPath,
-                        voteAverage = incoming.voteAverage,
-                        voteCount = incoming.voteCount,
-                        updatedAt = incoming.updatedAt,
-                    ) ?: incoming
-                    )
-            }
-            val results = state.results + (queryKey to movies.map { it.id })
-            val referenced = results.values.flatten().toSet()
+                .copy(lastRefreshedAt = refreshedAt, loadedPages = 1, totalPages = totalPages)
+            // Movies are never pruned: they stay in the catalogue, as with the real DAO.
             state.copy(
-                movies = mergedMovies.filterKeys { it in referenced },
+                movies = state.movies.merge(movies),
                 queries = state.queries + (queryKey to query),
-                results = results,
+                results = state.results + (queryKey to movies.map { it.id }.distinct()),
             )
         }
     }
+
+    override suspend fun pagination(queryKey: String): QueryPagination? =
+        db.value.queries[queryKey]?.let { QueryPagination(it.loadedPages, it.totalPages) }
+
+    /** Mirrors SearchDao.appendPage: applied only when exactly `page - 1` pages are stored. */
+    override suspend fun appendSearchResultsPage(
+        queryKey: String,
+        page: Int,
+        movies: List<MovieEntity>,
+        totalPages: Int,
+    ): Boolean {
+        var applied = false
+        db.update { state ->
+            val withMovies = state.copy(movies = state.movies.merge(movies))
+            val query = state.queries[queryKey]
+            if (query == null || page < 2 || query.loadedPages != page - 1) {
+                applied = false
+                return@update withMovies
+            }
+            applied = true
+            val existing = state.results[queryKey].orEmpty()
+            val appended = existing + movies.map { it.id }.distinct().filterNot { it in existing }
+            withMovies.copy(
+                queries = state.queries + (queryKey to query.copy(loadedPages = page, totalPages = totalPages)),
+                results = state.results + (queryKey to appended),
+            )
+        }
+        writes += "appendSearchResultsPage:$queryKey:$page:${if (applied) "applied" else "rejected"}"
+        return applied
+    }
+
+    /** Keeps detail columns of already cached movies, as the DAO's partial update does. */
+    private fun Map<Long, MovieEntity>.merge(incoming: List<MovieEntity>): Map<Long, MovieEntity> =
+        this + incoming.associate { movie ->
+            val previous = this[movie.id]
+            movie.id to (
+                previous?.copy(
+                    title = movie.title,
+                    overview = movie.overview,
+                    releaseDate = movie.releaseDate,
+                    posterPath = movie.posterPath,
+                    backdropPath = movie.backdropPath,
+                    voteAverage = movie.voteAverage,
+                    voteCount = movie.voteCount,
+                    updatedAt = movie.updatedAt,
+                ) ?: movie
+                )
+        }
 
     override suspend fun saveMovieDetails(movie: MovieEntity) {
         writes += "saveMovieDetails:${movie.id}"

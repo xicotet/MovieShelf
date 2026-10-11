@@ -18,6 +18,13 @@ interface SearchRepository {
      */
     suspend fun refresh(query: SearchQuery): RefreshResult
 
+    /**
+     * Fetches the next TMDB page of [query]'s cached results and appends it in one transaction
+     * before returning. A failure leaves every stored page untouched. Does nothing (and succeeds)
+     * when no further page exists or the stored results changed meanwhile (e.g. a page-1 refresh).
+     */
+    suspend fun loadNextPage(query: SearchQuery): RefreshResult
+
     /** Most recently submitted queries first, without duplicates. */
     fun observeRecentSearches(limit: Int): Flow<List<RecentSearch>>
 

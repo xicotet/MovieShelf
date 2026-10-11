@@ -26,6 +26,12 @@
     <string name="results_stale_generic">Couldn’t refresh. Showing saved results.</string>
     <string name="results_updated">Updated %1$s</string>
     <string name="results_retrying">Retrying…</string>
+    <string name="load_more">Load more</string>
+    <string name="load_more_loading">Loading more results…</string>
+    <string name="load_more_offline">You’re offline. Connect to the internet to load more results.</string>
+    <string name="load_more_unreachable">Couldn’t reach TMDB to load more results.</string>
+    <string name="load_more_timeout">TMDB took too long to load more results.</string>
+    <string name="load_more_failed">Couldn’t load more results.</string>
     <string name="results_still_offline">Still offline. Connect to the internet and try again.</string>
     <string name="results_stale_timeout">TMDB took too long to respond. Showing saved results.</string>
     <string name="results_notice_offline_saved">You’re offline. Showing saved results.</string>

@@ -58,18 +58,34 @@ class MovieRemoteDataSourceImplTest {
 
         val result = source.searchMovies("blade runner")
 
-        assertEquals(listOf(78L), (result as RemoteResult.Success).data.map { it.id })
+        assertEquals(listOf(78L), (result as RemoteResult.Success).data.results.map { it.id })
         val url = requests.single().url
         assertEquals("/3/search/movie", url.encodedPath)
         assertEquals("blade runner", url.parameters["query"])
         assertEquals("test-key", url.parameters["api_key"])
+        assertEquals("1", url.parameters["page"])
+    }
+
+    @Test
+    fun `requests the given page and exposes tmdb's pagination metadata`() = runTest {
+        val source = dataSource { json("""{"page":3,"results":[{"id":5,"title":"Alien 3"}],"total_pages":7,"total_results":140}""") }
+
+        val page = (source.searchMovies("alien", page = 3) as RemoteResult.Success).data
+
+        assertEquals("3", requests.single().url.parameters["page"])
+        assertEquals(3, page.page)
+        assertEquals(7, page.totalPages)
+        assertEquals(listOf(5L), page.results.map { it.id })
     }
 
     @Test
     fun `an empty result list is a success, not an error`() = runTest {
         val source = dataSource { json("""{"page":1,"results":[],"total_pages":0,"total_results":0}""") }
 
-        assertEquals(RemoteResult.Success(emptyList<Any>()), source.searchMovies("zzzz"))
+        val page = (source.searchMovies("zzzz") as RemoteResult.Success).data
+
+        assertTrue(page.results.isEmpty())
+        assertEquals(0, page.totalPages)
     }
 
     @Test

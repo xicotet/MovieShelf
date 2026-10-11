@@ -45,9 +45,6 @@ abstract class MovieDao {
     @Upsert
     abstract suspend fun upsertDetails(movie: MovieEntity)
 
-    @Query("DELETE FROM movies WHERE id NOT IN (SELECT movie_id FROM search_results)")
-    abstract suspend fun deleteUnreferenced()
-
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     protected abstract suspend fun insertIgnoringExisting(movies: List<MovieEntity>)
 
