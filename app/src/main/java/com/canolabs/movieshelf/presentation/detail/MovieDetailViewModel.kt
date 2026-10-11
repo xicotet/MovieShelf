@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -64,13 +65,14 @@ class MovieDetailViewModel(
                 isRefreshing = refresh == RefreshStatus.InProgress,
                 refreshError = (refresh as? RefreshStatus.Failed)?.error,
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MovieDetailUiState(movieId))
+        }.onStart { fetchOnce() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MovieDetailUiState(movieId))
 
     /**
-     * Called when the user has opened this destination. Fetches full details once per destination;
-     * the flag in [SavedStateHandle] prevents repeats on configuration change or process recreation.
+     * Fetches full details once per destination. The flag in [SavedStateHandle] prevents repeats on
+     * re-subscription, configuration change or process recreation.
      */
-    fun onOpened() {
+    private fun fetchOnce() {
         if (savedStateHandle.get<Boolean>(KEY_REQUESTED) == true) return
         savedStateHandle[KEY_REQUESTED] = true
         refresh()

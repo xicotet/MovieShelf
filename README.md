@@ -225,14 +225,14 @@ Around that, the app also became aware of connectivity. It reads the network sta
 - **Ktor instead of Retrofit.** Ktor is coroutine-first and Kotlin-first, and Coil can reuse it for images through its Ktor fetcher.
 - **Koin instead of Hilt.** It needs no annotation processing and keeps the setup short for an app this size. All dependencies are passed through constructors, so tests just use fakes.
 - **Stale requests can't overwrite newer ones.** Every submitted query gets its own Results destination and ViewModel. Inside a screen, a new refresh cancels the previous one, and a generation counter discards a result that was already on its way. A late response for an old query only updates that query's own cache.
-- **A search request runs once.** Opening Results sends the request one time. A flag in `SavedStateHandle` makes sure that configuration changes, recomposition or process recreation don't send it again.
+- **No loading from `init` or `LaunchedEffect`.** Results and Detail don't start their first request when the ViewModel is created, and the UI doesn't trigger it with a `LaunchedEffect` either. The request is attached to the state itself with `onStart { ... }` before `stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ...)`, so it starts when the screen first observes the state. That keeps side effects out of the constructor, makes it easy to decide in tests when loading begins, and doesn't depend on recomposition. Because `WhileSubscribed` restarts the flow after five seconds without observers, a flag in `SavedStateHandle` makes sure the request runs only once, even after configuration changes or process recreation.
 - **Pagination with a button, not infinite scroll.** "Load more" makes it obvious when a new request happens, which matters in an app where the connection can drop at any time.
 - **Room schema exported and migrated.** The database is on version 3, and the migrations from versions 1 and 2 are covered by instrumented tests.
 - **English only, on purpose.** Dates and numbers are formatted in English so the UI doesn't mix languages on a device set to another locale.
 
 ## Tests
 
-There are 162 JVM unit tests and 27 instrumented tests, and none of them needs a real network or an API key.
+There are 164 JVM unit tests and 27 instrumented tests, and none of them needs a real network or an API key.
 
 The unit tests focus on the repositories and ViewModels:
 

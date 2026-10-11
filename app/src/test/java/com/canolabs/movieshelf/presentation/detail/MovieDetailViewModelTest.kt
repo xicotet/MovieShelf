@@ -9,7 +9,9 @@ import com.canolabs.movieshelf.domain.usecase.ObserveMovieDetailsUseCaseImpl
 import com.canolabs.movieshelf.domain.usecase.RefreshMovieDetailsUseCaseImpl
 import com.canolabs.movieshelf.testing.MainDispatcherRule
 import com.canolabs.movieshelf.testing.movie
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,6 +27,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MovieDetailViewModelTest {
@@ -54,12 +58,12 @@ class MovieDetailViewModelTest {
         refreshMovieDetails = RefreshMovieDetailsUseCaseImpl(repository),
     )
 
-    private fun TestScope.subscribe(viewModel: MovieDetailViewModel) {
+    /** Observing the state is what a visible screen does; it starts the one-time details fetch. */
+    private fun TestScope.subscribe(viewModel: MovieDetailViewModel): Job =
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
-    }
 
     @Test
-    fun `initial state is loading and makes no request`() = runTest {
+    fun `initial state is loading and makes no request until the state is observed`() = runTest {
         val viewModel = createViewModel()
 
         assertTrue(viewModel.uiState.value.isLoading)
@@ -67,19 +71,22 @@ class MovieDetailViewModelTest {
     }
 
     @Test
-    fun `renders the cached movie without a network request`() = runTest {
+    fun `renders the cached movie while details are being fetched`() = runTest {
         repository.movies.value = mapOf(1L to cachedSummary)
+        val response = CompletableDeferred<RefreshResult>()
+        repository.onRefresh = { response.await() }
         val viewModel = createViewModel()
         subscribe(viewModel)
 
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
+        assertTrue(state.isRefreshing)
         assertEquals("Arrival", state.details?.movie?.title)
-        assertEquals(0, repository.refreshCalls)
+        response.complete(RefreshResult.Success)
     }
 
     @Test
-    fun `opening fetches details once and shows the persisted extras`() = runTest {
+    fun `observing fetches details once and shows the persisted extras`() = runTest {
         repository.movies.value = mapOf(1L to cachedSummary)
         repository.onRefresh = {
             repository.movies.update { it + (1L to cachedSummary.copy(extras = extras)) }
@@ -87,12 +94,34 @@ class MovieDetailViewModelTest {
         }
         val viewModel = createViewModel()
         subscribe(viewModel)
-
-        viewModel.onOpened()
-        viewModel.onOpened()
+        subscribe(viewModel)
 
         assertEquals(1, repository.refreshCalls)
         assertEquals(extras, viewModel.uiState.value.details?.extras)
+    }
+
+    @Test
+    fun `observing again after the sharing timeout does not fetch again`() = runTest {
+        repository.movies.value = mapOf(1L to cachedSummary)
+        val viewModel = createViewModel()
+        subscribe(viewModel).cancel()
+        // Long enough for WhileSubscribed to stop the upstream, so the next observer restarts it.
+        advanceTimeBy(5_001.milliseconds)
+
+        subscribe(viewModel)
+
+        assertEquals(1, repository.refreshCalls)
+    }
+
+    @Test
+    fun `a recreated view model with the same saved state does not fetch again`() = runTest {
+        repository.movies.value = mapOf(1L to cachedSummary)
+        val savedStateHandle = SavedStateHandle()
+        subscribe(createViewModel(savedStateHandle))
+
+        subscribe(createViewModel(savedStateHandle))
+
+        assertEquals(1, repository.refreshCalls)
     }
 
     @Test
@@ -101,8 +130,6 @@ class MovieDetailViewModelTest {
         repository.onRefresh = { RefreshResult.Failure(DataError.Network) }
         val viewModel = createViewModel()
         subscribe(viewModel)
-
-        viewModel.onOpened()
 
         val state = viewModel.uiState.value
         assertEquals("Arrival", state.details?.movie?.title)
@@ -117,8 +144,6 @@ class MovieDetailViewModelTest {
         val viewModel = createViewModel()
         subscribe(viewModel)
 
-        viewModel.onOpened()
-
         val state = viewModel.uiState.value
         assertEquals(extras, state.details?.extras)
         assertFalse(state.extrasUnavailable)
@@ -129,8 +154,6 @@ class MovieDetailViewModelTest {
         repository.onRefresh = { RefreshResult.Failure(DataError.Network) }
         val viewModel = createViewModel()
         subscribe(viewModel)
-
-        viewModel.onOpened()
 
         val state = viewModel.uiState.value
         assertTrue(state.isMissing)
@@ -144,7 +167,6 @@ class MovieDetailViewModelTest {
         repository.onRefresh = { RefreshResult.Failure(DataError.Network) }
         val viewModel = createViewModel()
         subscribe(viewModel)
-        viewModel.onOpened()
 
         repository.onRefresh = {
             repository.movies.update { it + (1L to cachedSummary.copy(extras = extras)) }

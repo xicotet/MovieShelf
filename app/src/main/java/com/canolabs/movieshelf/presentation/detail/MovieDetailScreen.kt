@@ -47,7 +47,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,9 +84,8 @@ fun MovieDetailRoute(
     posterUrlHint: String?,
     onBack: () -> Unit,
 ) {
+    // Observing the state starts the one-time details fetch in the ViewModel.
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // Opening this destination is the user's request for details; the ViewModel fetches once.
-    LaunchedEffect(viewModel) { viewModel.onOpened() }
     MovieDetailScreen(state = state, posterUrlHint = posterUrlHint, onBack = onBack, onRetry = viewModel::retry)
 }
 
